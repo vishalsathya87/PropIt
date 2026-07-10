@@ -6,7 +6,7 @@ export const api = axios.create({
   baseURL: API_URL,
 });
 
-// Request interceptor: attach JWT
+// Request interceptor: attach token synchronously from localStorage (no async hangs)
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
@@ -15,11 +15,12 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor: handle 401 globally
+// Response interceptor: handle 401 globally (except for auth check routes)
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
+  async (error) => {
+    const isAuthRoute = error.config?.url?.includes('/auth/');
+    if (error.response?.status === 401 && !isAuthRoute) {
       clearToken();
       window.location.href = '/login';
     }

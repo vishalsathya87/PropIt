@@ -51,8 +51,8 @@ function App() {
           <Route path="*" element={<NotFound />} />
         </Route>
 
-        {/* Fullscreen Secure Viewer */}
-        <Route path="/viewer/:docId" element={
+        {/* Fullscreen Secure Viewer — /viewer/:propertyId/:docIndex */}
+        <Route path="/viewer/:propertyId/:docIndex" element={
           <ProtectedRoute><SecureViewer /></ProtectedRoute>
         } />
       </Routes>

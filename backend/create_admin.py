@@ -1,71 +1,104 @@
 """
-create_admin.py — One-time script to bootstrap the initial ADMIN user.
-
-Credentials are read from environment variables (or a .env file) rather than
-being hardcoded in source.  Required env vars:
-
-    ADMIN_PHONE     — 10-digit phone number for the admin account
-    ADMIN_PASSWORD  — password for the admin account
-
-Optional env vars (inherited from the main app config):
-
-    MONGODB_URL     — defaults to mongodb://localhost:27017
-    DATABASE_NAME   — defaults to propit
-
-Usage:
-    python create_admin.py
-
-This script intentionally uses a *synchronous* PyMongo connection (not Motor)
-because it runs outside the FastAPI async event-loop context.  Using Motor
-here would require wrapping everything in asyncio.run(), which works but adds
-unnecessary complexity for a simple one-shot CLI script.
+create_admin.py — CLI script to bootstrap the initial ADMIN user in Firebase and MongoDB.
 """
 import os
-import bcrypt
 from pymongo import MongoClient
 from dotenv import load_dotenv
+import firebase_admin
+from firebase_admin import credentials, auth
 
 load_dotenv()
 
 
+def init_firebase():
+    firebase_service_account_path = os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH", "firebase-service-account.json")
+    if os.path.exists(firebase_service_account_path):
+        try:
+            cred = credentials.Certificate(firebase_service_account_path)
+            firebase_admin.initialize_app(cred)
+        except ValueError:
+            pass # Already initialized
+    else:
+        try:
+            firebase_admin.initialize_app()
+        except ValueError:
+            pass # Already initialized
+        except Exception as e:
+            raise RuntimeError(
+                f"Firebase Admin SDK could not be initialized. "
+                f"Please place your Firebase service account JSON in the backend folder. Error: {e}"
+            )
 
 
 def create_admin() -> None:
-    """Create the initial admin user using a synchronous MongoDB connection."""
+    init_firebase()
+
     mongo_url = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
     db_name = os.getenv("DATABASE_NAME", "propit")
     phone_number = os.getenv("ADMIN_PHONE", "9999999999")
     password = os.getenv("ADMIN_PASSWORD", "adminpassword")
+    email = os.getenv("ADMIN_EMAIL", "admin@propit.com")
 
-    if phone_number == "9999999999" or password == "adminpassword":
-        print(
-            "WARNING: You are using default admin credentials.\n"
-            "Set ADMIN_PHONE and ADMIN_PASSWORD environment variables before running in production!"
-        )
-
-    # Synchronous client — correct for a standalone CLI script.
+    # Connect to MongoDB
     client = MongoClient(mongo_url, serverSelectionTimeoutMS=5000)
     db = client[db_name]
 
-    existing = db.users.find_one({"phone_number": phone_number})
-    if existing:
-        print(f"Admin user with phone {phone_number} already exists. No changes made.")
+    # Check if admin user exists in Firebase Auth
+    firebase_user = None
+    try:
+        firebase_user = auth.get_user_by_email(email)
+        print(f"Admin already exists in Firebase Auth (UID: {firebase_user.uid}).")
+    except auth.UserNotFoundError:
+        # Create user in Firebase Auth
+        try:
+            firebase_user = auth.create_user(
+                email=email,
+                password=password,
+                phone_number=f"+91{phone_number}",  # Add India prefix for Firebase formatting
+                display_name="System Administrator",
+            )
+            print(f"Admin user created in Firebase Auth (UID: {firebase_user.uid}).")
+        except Exception as e:
+            # Try without phone number in case of formatting or duplicate phone issues
+            try:
+                firebase_user = auth.create_user(
+                    email=email,
+                    password=password,
+                    display_name="System Administrator",
+                )
+                print(f"Admin user created in Firebase Auth without phone number (UID: {firebase_user.uid}).")
+            except Exception as ex:
+                print(f"Error creating admin in Firebase Auth: {ex}")
+                client.close()
+                return
+
+    if not firebase_user:
+        print("Failed to resolve or create Firebase Admin user.")
         client.close()
         return
 
-    admin_user = {
-        "phone_number": phone_number,
-        "password_hash": bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8"),
-        "role": "ADMIN",
-        "full_name": "System Administrator",
-    }
+    uid = firebase_user.uid
 
-    db.users.insert_one(admin_user)
+    # Sync to MongoDB
+    existing = db.users.find_one({"_id": uid})
+    if existing:
+        print(f"Admin user with UID {uid} already exists in MongoDB. No changes made.")
+    else:
+        admin_user = {
+            "_id": uid,
+            "email": email,
+            "phone_number": phone_number,
+            "role": "ADMIN",
+            "full_name": "System Administrator",
+        }
+        db.users.insert_one(admin_user)
+        print(f"Admin synced to MongoDB successfully under UID {uid}.")
+
     print(
-        f"Admin created successfully!\n"
-        f"  Phone:    {phone_number}\n"
+        f"\nAdmin credentials summary:\n"
+        f"  Email:    {email}\n"
         f"  Password: {password}\n"
-        "IMPORTANT: Change these credentials immediately in production!"
+        f"  Phone:    {phone_number}\n"
     )
     client.close()
 

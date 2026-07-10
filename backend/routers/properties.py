@@ -196,6 +196,35 @@ async def get_my_properties(db=Depends(get_db), current_user=Depends(get_current
     return properties
 
 
+# IMPORTANT: /seller/me/stats MUST also be before /{property_id}
+@router.get("/seller/me/stats")
+async def get_seller_stats(db=Depends(get_db), current_user=Depends(get_current_user)):
+    """Return per-property unlock counts for the authenticated seller."""
+    if current_user["role"] != "SELLER":
+        raise HTTPException(status_code=403, detail="Only sellers can view their stats")
+
+    seller_id = str(current_user["_id"])
+    # Find all properties owned by this seller
+    prop_ids = []
+    async for doc in db.properties.find({"seller_id": seller_id}, {"_id": 1}):
+        prop_ids.append(str(doc["_id"]))
+
+    # Count unlocks per property from transactions
+    pipeline = [
+        {"$match": {"property_id": {"$in": prop_ids}, "status": "SUCCESS"}},
+        {"$group": {"_id": "$property_id", "unlock_count": {"$sum": 1}}},
+    ]
+    unlock_map: dict = {}
+    async for row in db.transactions.aggregate(pipeline):
+        unlock_map[row["_id"]] = row["unlock_count"]
+
+    return {
+        "unlock_counts": unlock_map,
+        "total_unlocks": sum(unlock_map.values()),
+        "total_revenue": sum(unlock_map.values()) * 500,
+    }
+
+
 @router.get("/{property_id}", response_model=PropertyResponse)
 async def get_property_by_id(property_id: str, db=Depends(get_db)):
     if not ObjectId.is_valid(property_id):

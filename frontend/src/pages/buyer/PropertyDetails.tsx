@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
+import { formatPrice } from '../../lib/utils';
 
 export default function PropertyDetails() {
   const { id } = useParams<{ id: string }>();
@@ -41,9 +42,8 @@ export default function PropertyDetails() {
     }
   };
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(price);
-  };
+  // formatPrice imported from utils
+
 
   if (loading) return <div className="text-center py-20"><div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>;
   if (!prop) return <div className="text-center py-20 text-red-500">Property not found.</div>;
@@ -100,13 +100,19 @@ export default function PropertyDetails() {
               {prop.water_source && (
                 <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
                   <p className="text-xs text-blue-500 uppercase font-semibold">Water Source</p>
-                  <p className="text-sm font-medium text-blue-900 mt-1">💧 {prop.water_source}</p>
+                  <p className="text-sm font-medium text-blue-900 mt-1 flex items-center gap-1">
+                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M7.293 1.293a1 1 0 011.414 0l7 7A1 1 0 0116 10v7a1 1 0 01-1 1H9a1 1 0 01-1-1v-3H5a1 1 0 01-1-1V10a1 1 0 01.293-.707l3-3zM6 10.414V15h2v-4.586L6 10.414zm4 0V15h4v-4.586l-4-4V10.414z" clipRule="evenodd" /></svg>
+                    {prop.water_source}
+                  </p>
                 </div>
               )}
               {prop.road_access && (
                 <div className="bg-yellow-50 rounded-lg p-3 border border-yellow-100">
                   <p className="text-xs text-yellow-600 uppercase font-semibold">Road Access</p>
-                  <p className="text-sm font-medium text-yellow-900 mt-1">🛣️ {prop.road_access}</p>
+                  <p className="text-sm font-medium text-yellow-900 mt-1 flex items-center gap-1">
+                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h2V2h4v2h2a2 2 0 012 2v8a2 2 0 01-2 2h-2v2H8v-2zm0-10v8h4V6H8z"/></svg>
+                    {prop.road_access}
+                  </p>
                 </div>
               )}
               {prop.fencing && (
@@ -117,11 +123,19 @@ export default function PropertyDetails() {
               )}
               <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
                 <p className="text-xs text-gray-500 uppercase font-semibold">Electricity</p>
-                <p className="text-sm font-medium mt-1">{prop.electricity ? '⚡ Available' : '❌ Not Available'}</p>
+                <p className={`text-sm font-medium mt-1 flex items-center gap-1 ${prop.electricity ? 'text-amber-700' : 'text-gray-400'}`}>
+                  {prop.electricity ? (
+                    <><svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd"/></svg>Available</>
+                  ) : 'Not Available'}
+                </p>
               </div>
               <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
                 <p className="text-xs text-gray-500 uppercase font-semibold">Irrigation</p>
-                <p className="text-sm font-medium mt-1">{prop.irrigation ? '🌾 Available' : '❌ Not Available'}</p>
+                <p className={`text-sm font-medium mt-1 flex items-center gap-1 ${prop.irrigation ? 'text-green-700' : 'text-gray-400'}`}>
+                  {prop.irrigation ? (
+                    <><svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M5.5 16a3.5 3.5 0 01-.369-6.98 4 4 0 117.753-1.977A4.5 4.5 0 1113.5 16h-8z"/></svg>Available</>
+                  ) : 'Not Available'}
+                </p>
               </div>
               {prop.nearby_town && (
                 <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">

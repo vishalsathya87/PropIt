@@ -20,13 +20,39 @@ class PyObjectId(ObjectId):
         field_schema.update(type="string")
 
 
+# ---------------------------------------------------------------------------
+# Shared base — avoids duplicate to_insert_dict() on every MongoDB model
+# ---------------------------------------------------------------------------
+class MongoInsertBase(BaseModel):
+    def to_insert_dict(self) -> dict:
+        """Return a dict safe for MongoDB insertion.
+
+        Excludes the ``_id`` key entirely when it is None so MongoDB can
+        auto-generate the ObjectId.  Passing ``_id: None`` causes a
+        WriteError because MongoDB rejects null _id values.
+        """
+        return self.model_dump(by_alias=True, exclude_none=True)
+
+
+# ---------------------------------------------------------------------------
+# Structured document item — replaces the unvalidated List[dict]
+# ---------------------------------------------------------------------------
+class DocumentItem(BaseModel):
+    type: str   # e.g. "Patta", "Chitta", "FMB Sketch"
+    url: str    # relative path served from /uploads/
+
+
+# ---------------------------------------------------------------------------
+# Auth models
+# ---------------------------------------------------------------------------
 class Token(BaseModel):
     access_token: str
     token_type: str
 
 
 class TokenData(BaseModel):
-    phone_number: Optional[str] = None
+    uid: Optional[str] = None
+    email: Optional[str] = None
 
 
 class KYCDetails(BaseModel):
@@ -36,8 +62,9 @@ class KYCDetails(BaseModel):
 
 
 class UserCreate(BaseModel):
+    uid: str
+    email: str
     phone_number: str
-    password: str
     role: str
     full_name: Optional[str] = None
     kyc_details: Optional[KYCDetails] = None
@@ -51,33 +78,27 @@ class UserCreate(BaseModel):
         return v
 
 
-class UserInDB(BaseModel):
-    id: Optional[PyObjectId] = Field(alias="_id", default=None)
+class UserInDB(MongoInsertBase):
+    id: str = Field(alias="_id")  # Firebase uid
+    email: str
     phone_number: str
-    password_hash: str
     role: str
     full_name: Optional[str] = None
     kyc_details: Optional[KYCDetails] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
-    def to_insert_dict(self) -> dict:
-        """Return a dict safe for MongoDB insertion.
-
-        Excludes the ``_id`` key entirely when it is None so MongoDB can
-        auto-generate the ObjectId.  Passing ``_id: None`` causes a
-        WriteError because MongoDB rejects null _id values.
-        """
-        return self.model_dump(by_alias=True, exclude_none=True)
-
 
 class UserResponse(BaseModel):
     id: str
+    email: str
     phone_number: str
     role: str
     full_name: Optional[str] = None
 
 
-# --- Property Models ---
+# ---------------------------------------------------------------------------
+# Property models
+# ---------------------------------------------------------------------------
 
 class PropertyCreate(BaseModel):
     city: str
@@ -89,7 +110,7 @@ class PropertyCreate(BaseModel):
     type: str  # Agricultural Land, Flat Plot, Farm Land, Residential Plot, Commercial Plot
     keywords: List[str] = []
     description: Optional[str] = None
-    documents: List[dict] = [] # list of {"type": str, "url": str}
+    documents: List[DocumentItem] = []
     # Extra details for better search
     soil_type: Optional[str] = None        # Red, Black, Alluvial, Laterite
     water_source: Optional[str] = None     # Borewell, Canal, River, Rainfed, None
@@ -102,14 +123,14 @@ class PropertyCreate(BaseModel):
 
 
 class PropertyUpdate(BaseModel):
-    """Only the fields a seller is permitted to change.
-    Protected fields (seller_id, status, view_count, area, area_unit, type,
-    keywords) are intentionally excluded to prevent tampering.
-    """
+    """Fields a seller is permitted to change."""
     city: Optional[str] = None
     district: Optional[str] = None
     state: Optional[str] = None
     price: Optional[float] = None
+    type: Optional[str] = None
+    area_unit: Optional[str] = None
+    keywords: Optional[List[str]] = None
     description: Optional[str] = None
     soil_type: Optional[str] = None
     water_source: Optional[str] = None
@@ -121,21 +142,12 @@ class PropertyUpdate(BaseModel):
     distance_from_town_km: Optional[float] = None
 
 
-class PropertyInDB(PropertyCreate):
+class PropertyInDB(MongoInsertBase, PropertyCreate):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)
     seller_id: str
     status: str = "PENDING_VERIFICATION"
     view_count: int = 0
     created_at: datetime = Field(default_factory=datetime.utcnow)
-
-    def to_insert_dict(self) -> dict:
-        """Return a dict safe for MongoDB insertion.
-
-        Excludes the ``_id`` key entirely when it is None so MongoDB can
-        auto-generate the ObjectId.  Passing ``_id: None`` causes a
-        WriteError because MongoDB rejects null _id values.
-        """
-        return self.model_dump(by_alias=True, exclude_none=True)
 
 
 class PropertyResponse(PropertyCreate):

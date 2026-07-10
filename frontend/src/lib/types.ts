@@ -1,3 +1,8 @@
+export interface DocumentItem {
+  type: string;  // e.g. "Patta", "Chitta", "FMB Sketch"
+  url: string;   // relative path on backend
+}
+
 export interface Property {
   id: string;
   seller_id: string;
@@ -10,6 +15,7 @@ export interface Property {
   type: string;
   keywords: string[];
   description?: string;
+  documents: DocumentItem[];
   status: string;
   view_count: number;
   soil_type?: string;
@@ -32,8 +38,22 @@ export interface User {
 export interface PlatformStats {
   total_users: number;
   total_properties: number;
+  active_properties: number;
+  pending_properties: number;
   total_transactions: number;
   total_revenue: number;
+}
+
+export interface AdminTransaction {
+  id: string;
+  buyer_id: string;
+  buyer_phone: string;
+  property_id: string;
+  property_city: string;
+  property_district: string;
+  amount: number;
+  status: string;
+  created_at?: string;
 }
 
 export interface AdminUser {
@@ -50,9 +70,14 @@ export interface AdminProperty {
   seller_id: string;
   city: string;
   district?: string;
+  type?: string;
+  price?: number;
+  area?: number;
+  area_unit?: string;
   status: string;
   view_count: number;
   created_at?: string;
+  documents?: DocumentItem[];
 }
 
 export const LAND_TYPES = [

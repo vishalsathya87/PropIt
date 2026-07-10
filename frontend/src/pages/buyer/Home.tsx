@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
+import { PROPERTY_IMAGES } from '../../lib/types';
+import { formatPrice } from '../../lib/utils';
 
 interface Property {
   id: string;
@@ -81,11 +83,7 @@ export default function Home() {
 
   const hasActiveFilters = filterType || filterDistrict || filterMinPrice || filterMaxPrice || filterMinArea || filterMaxArea || filterWaterSource || filterRoadAccess;
 
-  const formatPrice = (price: number) => {
-    if (price >= 10000000) return `₹${(price / 10000000).toFixed(2)} Cr`;
-    if (price >= 100000) return `₹${(price / 100000).toFixed(2)} L`;
-    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(price);
-  };
+  // formatPrice imported from utils
 
   const selectClass = "block w-full bg-white border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary text-sm";
   const inputClass = "block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary text-sm";
@@ -222,8 +220,8 @@ export default function Home() {
             <div key={property.id} className="group relative bg-white border border-gray-200 rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden flex flex-col">
               <div className="w-full min-h-64 bg-gray-200 aspect-w-1 aspect-h-1 rounded-t-2xl overflow-hidden group-hover:opacity-75 lg:h-64 lg:aspect-none relative">
                 <img
-                  src="https://images.unsplash.com/photo-1500382017468-9049fed747ef?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
-                  alt="Land plot"
+                  src={PROPERTY_IMAGES[property.type] ?? PROPERTY_IMAGES.default}
+                  alt={property.type}
                   className="w-full h-full object-center object-cover lg:w-full lg:h-full"
                 />
                 <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold text-gray-900 shadow-sm">
@@ -248,19 +246,31 @@ export default function Home() {
                   </div>
                 </div>
                 
-                {/* Feature Tags */}
+                {/* Feature Tags — using SVG to avoid emoji encoding issues */}
                 <div className="flex flex-wrap gap-1.5 mt-3">
                   {property.water_source && (
-                    <span className="inline-flex items-center text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">💧 {property.water_source}</span>
+                    <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M7.293 1.293a1 1 0 011.414 0l7 7A1 1 0 0116 10v7a1 1 0 01-1 1H9a1 1 0 01-1-1v-3H5a1 1 0 01-1-1V10a1 1 0 01.293-.707l3-3zM6 10.414V15h2v-4.586L6 10.414zm4 0V15h4v-4.586l-4-4V10.414z" clipRule="evenodd" /></svg>
+                      {property.water_source}
+                    </span>
                   )}
                   {property.road_access && (
-                    <span className="inline-flex items-center text-xs bg-yellow-50 text-yellow-700 px-2 py-0.5 rounded-full">🛣️ {property.road_access}</span>
+                    <span className="inline-flex items-center gap-1 text-xs bg-yellow-50 text-yellow-700 px-2 py-0.5 rounded-full">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h2V2h4v2h2a2 2 0 012 2v8a2 2 0 01-2 2h-2v2H8v-2zm0-10v8h4V6H8z"/></svg>
+                      {property.road_access}
+                    </span>
                   )}
                   {property.electricity && (
-                    <span className="inline-flex items-center text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full">⚡ Electricity</span>
+                    <span className="inline-flex items-center gap-1 text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd"/></svg>
+                      Electricity
+                    </span>
                   )}
                   {property.irrigation && (
-                    <span className="inline-flex items-center text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full">🌾 Irrigation</span>
+                    <span className="inline-flex items-center gap-1 text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M5.5 16a3.5 3.5 0 01-.369-6.98 4 4 0 117.753-1.977A4.5 4.5 0 1113.5 16h-8z"/></svg>
+                      Irrigation
+                    </span>
                   )}
                 </div>
 
