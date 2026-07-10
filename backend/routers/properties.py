@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Optional
 from database import get_db
-from models import PropertyCreate, PropertyInDB, PropertyResponse
+from models import PropertyCreate, PropertyInDB, PropertyResponse, PropertyUpdate
 from .auth import get_current_user
 from bson import ObjectId
 
 router = APIRouter(prefix="/api/v1/properties", tags=["properties"])
+
 
 def _doc_to_response(document) -> PropertyResponse:
     """Helper to convert a MongoDB document to a PropertyResponse."""
@@ -33,6 +34,7 @@ def _doc_to_response(document) -> PropertyResponse:
         distance_from_town_km=document.get("distance_from_town_km"),
     )
 
+
 @router.get("/", response_model=List[PropertyResponse])
 async def get_properties(
     type: Optional[str] = Query(None, description="Filter by land type"),
@@ -48,10 +50,10 @@ async def get_properties(
     electricity: Optional[bool] = Query(None, description="Filter by electricity"),
     irrigation: Optional[bool] = Query(None, description="Filter by irrigation"),
     search: Optional[str] = Query(None, description="Free text search"),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     query = {"status": "ACTIVE"}
-    
+
     if type:
         query["type"] = type
     if city:
@@ -88,71 +90,92 @@ async def get_properties(
             {"keywords": {"$elemMatch": {"$regex": search, "$options": "i"}}},
             {"nearby_town": {"$regex": search, "$options": "i"}},
         ]
-    
+
     properties = []
     cursor = db.properties.find(query)
     async for document in cursor:
         properties.append(_doc_to_response(document))
     return properties
 
+
 @router.post("/", response_model=PropertyResponse)
-async def create_property(property_data: PropertyCreate, db = Depends(get_db), current_user = Depends(get_current_user)):
+async def create_property(
+    property_data: PropertyCreate,
+    db=Depends(get_db),
+    current_user=Depends(get_current_user),
+):
     if current_user["role"] != "SELLER":
         raise HTTPException(status_code=403, detail="Only sellers can list properties")
-        
+
     new_property = PropertyInDB(**property_data.dict(), seller_id=str(current_user["_id"]))
-    result = await db.properties.insert_one(new_property.dict(by_alias=True))
-    
+    # to_insert_dict() excludes _id: None so MongoDB auto-generates the ObjectId.
+    result = await db.properties.insert_one(new_property.to_insert_dict())
+
     created_property = await db.properties.find_one({"_id": result.inserted_id})
     return _doc_to_response(created_property)
 
+
 # IMPORTANT: /seller/me MUST be defined BEFORE /{property_id}
-# otherwise FastAPI will interpret "seller" as a property_id path parameter
+# otherwise FastAPI will interpret "seller" as a property_id path parameter.
 @router.get("/seller/me", response_model=List[PropertyResponse])
-async def get_my_properties(db = Depends(get_db), current_user = Depends(get_current_user)):
+async def get_my_properties(db=Depends(get_db), current_user=Depends(get_current_user)):
     if current_user["role"] != "SELLER":
         raise HTTPException(status_code=403, detail="Only sellers can view their listings here")
-        
+
     properties = []
     cursor = db.properties.find({"seller_id": str(current_user["_id"])})
     async for document in cursor:
         properties.append(_doc_to_response(document))
     return properties
 
+
 @router.get("/{property_id}", response_model=PropertyResponse)
-async def get_property_by_id(property_id: str, db = Depends(get_db)):
+async def get_property_by_id(property_id: str, db=Depends(get_db)):
     if not ObjectId.is_valid(property_id):
         raise HTTPException(status_code=400, detail="Invalid property ID")
     document = await db.properties.find_one({"_id": ObjectId(property_id)})
     if not document:
         raise HTTPException(status_code=404, detail="Property not found")
-    # Increment view count
+    # Increment view count atomically
     await db.properties.update_one(
         {"_id": ObjectId(property_id)},
-        {"$inc": {"view_count": 1}}
+        {"$inc": {"view_count": 1}},
     )
     document["view_count"] = document.get("view_count", 0) + 1
     return _doc_to_response(document)
 
+
 @router.put("/{property_id}", response_model=PropertyResponse)
-async def update_property(property_id: str, property_data: dict, db = Depends(get_db), current_user = Depends(get_current_user)):
-    if current_user["role"] != "SELLER" and current_user["role"] != "ADMIN":
+async def update_property(
+    property_id: str,
+    # Fix: use validated PropertyUpdate instead of raw dict to prevent
+    # tampering with protected fields (seller_id, status, view_count, etc.)
+    property_data: PropertyUpdate,
+    db=Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    if current_user["role"] not in ("SELLER", "ADMIN"):
         raise HTTPException(status_code=403, detail="Not authorized to edit")
-        
+
     if not ObjectId.is_valid(property_id):
         raise HTTPException(status_code=400, detail="Invalid ID")
-        
-    property = await db.properties.find_one({"_id": ObjectId(property_id)})
-    if not property:
+
+    existing = await db.properties.find_one({"_id": ObjectId(property_id)})
+    if not existing:
         raise HTTPException(status_code=404, detail="Property not found")
-        
-    if property["seller_id"] != str(current_user["_id"]) and current_user["role"] != "ADMIN":
+
+    if existing["seller_id"] != str(current_user["_id"]) and current_user["role"] != "ADMIN":
         raise HTTPException(status_code=403, detail="Not your property")
-        
+
+    # Only push fields that were explicitly provided (exclude unset None values).
+    update_fields = property_data.dict(exclude_none=True)
+    if not update_fields:
+        raise HTTPException(status_code=400, detail="No valid fields to update")
+
     await db.properties.update_one(
         {"_id": ObjectId(property_id)},
-        {"$set": property_data}
+        {"$set": update_fields},
     )
-    
+
     updated = await db.properties.find_one({"_id": ObjectId(property_id)})
     return _doc_to_response(updated)

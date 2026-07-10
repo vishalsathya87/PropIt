@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
 from datetime import datetime
 from bson import ObjectId
+
 
 class PyObjectId(ObjectId):
     @classmethod
@@ -18,17 +19,21 @@ class PyObjectId(ObjectId):
     def __get_pydantic_json_schema__(cls, field_schema):
         field_schema.update(type="string")
 
+
 class Token(BaseModel):
     access_token: str
     token_type: str
 
+
 class TokenData(BaseModel):
     phone_number: Optional[str] = None
+
 
 class KYCDetails(BaseModel):
     aadhaar_number: str
     pan_number: str
     status: str = "PENDING"
+
 
 class UserCreate(BaseModel):
     phone_number: str
@@ -36,6 +41,15 @@ class UserCreate(BaseModel):
     role: str
     full_name: Optional[str] = None
     kyc_details: Optional[KYCDetails] = None
+
+    @field_validator("phone_number")
+    @classmethod
+    def phone_must_be_10_digits(cls, v: str) -> str:
+        """Enforce exactly 10 numeric digits for Indian phone numbers."""
+        if not v.isdigit() or len(v) != 10:
+            raise ValueError("phone_number must be exactly 10 digits")
+        return v
+
 
 class UserInDB(BaseModel):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)
@@ -45,12 +59,14 @@ class UserInDB(BaseModel):
     full_name: Optional[str] = None
     kyc_details: Optional[KYCDetails] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    
+
+
 class UserResponse(BaseModel):
     id: str
     phone_number: str
     role: str
     full_name: Optional[str] = None
+
 
 # --- Property Models ---
 
@@ -65,14 +81,35 @@ class PropertyCreate(BaseModel):
     keywords: List[str] = []
     description: Optional[str] = None
     # Extra details for better search
-    soil_type: Optional[str] = None  # Red, Black, Alluvial, Laterite
-    water_source: Optional[str] = None  # Borewell, Canal, River, Rainfed, None
-    road_access: Optional[str] = None  # National Highway, State Highway, Village Road, No Road
-    fencing: Optional[str] = None  # Compound Wall, Wire Fence, Partial, None
+    soil_type: Optional[str] = None        # Red, Black, Alluvial, Laterite
+    water_source: Optional[str] = None     # Borewell, Canal, River, Rainfed, None
+    road_access: Optional[str] = None      # National Highway, State Highway, Village Road, No Road
+    fencing: Optional[str] = None          # Compound Wall, Wire Fence, Partial, None
     electricity: bool = False
     irrigation: bool = False
     nearby_town: Optional[str] = None
     distance_from_town_km: Optional[float] = None
+
+
+class PropertyUpdate(BaseModel):
+    """Only the fields a seller is permitted to change.
+    Protected fields (seller_id, status, view_count, area, area_unit, type,
+    keywords) are intentionally excluded to prevent tampering.
+    """
+    city: Optional[str] = None
+    district: Optional[str] = None
+    state: Optional[str] = None
+    price: Optional[float] = None
+    description: Optional[str] = None
+    soil_type: Optional[str] = None
+    water_source: Optional[str] = None
+    road_access: Optional[str] = None
+    fencing: Optional[str] = None
+    electricity: Optional[bool] = None
+    irrigation: Optional[bool] = None
+    nearby_town: Optional[str] = None
+    distance_from_town_km: Optional[float] = None
+
 
 class PropertyInDB(PropertyCreate):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)
@@ -80,6 +117,16 @@ class PropertyInDB(PropertyCreate):
     status: str = "ACTIVE"
     view_count: int = 0
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    def to_insert_dict(self) -> dict:
+        """Return a dict safe for MongoDB insertion.
+
+        Excludes the ``_id`` key entirely when it is None so MongoDB can
+        auto-generate the ObjectId.  Passing ``_id: None`` causes a
+        WriteError because MongoDB rejects null _id values.
+        """
+        return self.dict(by_alias=True, exclude_none=True)
+
 
 class PropertyResponse(PropertyCreate):
     id: str
