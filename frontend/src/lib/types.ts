@@ -16,6 +16,7 @@ export interface Property {
   keywords: string[];
   description?: string;
   documents: DocumentItem[];
+  images?: string[];
   status: string;
   view_count: number;
   soil_type?: string;
@@ -78,6 +79,7 @@ export interface AdminProperty {
   view_count: number;
   created_at?: string;
   documents?: DocumentItem[];
+  images?: string[];
 }
 
 export const LAND_TYPES = [
@@ -103,4 +105,17 @@ export const PROPERTY_IMAGES: Record<string, string> = {
   'Residential Plot': 'https://images.unsplash.com/photo-1570129477492-45c003edd2be?auto=format&fit=crop&w=800&q=80',
   'Commercial Plot': 'https://images.unsplash.com/photo-1486325212027-8081e485255e?auto=format&fit=crop&w=800&q=80',
   default: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=800&q=80',
+};
+
+export const getPropertyImageUrl = (property: Property | AdminProperty) => {
+  if (property.images && property.images.length > 0) {
+    const firstImg = property.images[0];
+    if (firstImg.startsWith('http')) return firstImg;
+    // Map relative uploads path to backend root
+    const rootUrl = import.meta.env.VITE_API_URL 
+      ? import.meta.env.VITE_API_URL.replace('/api/v1', '') 
+      : 'http://localhost:8000';
+    return `${rootUrl}${firstImg}`;
+  }
+  return PROPERTY_IMAGES[property.type || ''] ?? PROPERTY_IMAGES.default;
 };

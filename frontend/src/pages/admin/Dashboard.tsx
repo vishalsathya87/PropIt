@@ -574,7 +574,49 @@ export default function AdminDashboard() {
                         </button>
                       </td>
                       <td style={{ padding: '1rem 1.5rem', fontSize: '0.85rem' }}>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                          {p.status === 'PENDING_VERIFICATION' && (
+                            <>
+                              <button
+                                onClick={() => handleVerify(p.id, 'ACTIVE')}
+                                style={{
+                                  background: 'rgba(16, 185, 129, 0.08)',
+                                  border: 'none',
+                                  color: '#10b981',
+                                  fontWeight: 600,
+                                  padding: '0.4rem 0.8rem',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  fontFamily: 'inherit',
+                                  fontSize: '0.8rem',
+                                  transition: 'all 0.15s ease'
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(16, 185, 129, 0.15)'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'rgba(16, 185, 129, 0.08)'}
+                              >
+                                Accept
+                              </button>
+                              <button
+                                onClick={() => handleVerify(p.id, 'REJECTED')}
+                                style={{
+                                  background: 'rgba(255, 59, 48, 0.08)',
+                                  border: 'none',
+                                  color: '#ff3b30',
+                                  fontWeight: 600,
+                                  padding: '0.4rem 0.8rem',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  fontFamily: 'inherit',
+                                  fontSize: '0.8rem',
+                                  transition: 'all 0.15s ease'
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255, 59, 48, 0.15)'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255, 59, 48, 0.08)'}
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
                           <button
                             onClick={() => handleEditProperty(p.id)}
                             style={{

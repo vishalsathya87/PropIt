@@ -36,6 +36,7 @@ def _doc_to_response(document) -> PropertyResponse:
         irrigation=document.get("irrigation", False),
         nearby_town=document.get("nearby_town"),
         distance_from_town_km=document.get("distance_from_town_km"),
+        images=document.get("images", []),
     )
 
 
@@ -123,6 +124,7 @@ async def create_property(
     distance_from_town_km: float = Form(None),
     doc_types: List[str] = Form(...),
     files: List[UploadFile] = File(...),
+    image_files: List[UploadFile] = File([]),
     db=Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -148,6 +150,21 @@ async def create_property(
             
         documents.append({"type": dtype, "url": f"/{filepath.replace(os.sep, '/')}"})
 
+    # Process and save images
+    images = []
+    if len(image_files) > 0 and image_files[0].filename:
+        os.makedirs("uploads/images", exist_ok=True)
+        for img in image_files:
+            if img.filename:
+                ext = img.filename.split('.')[-1]
+                unique_filename = f"{uuid.uuid4().hex}.{ext}"
+                filepath = os.path.join("uploads/images", unique_filename)
+                
+                with open(filepath, "wb") as buffer:
+                    shutil.copyfileobj(img.file, buffer)
+                    
+                images.append(f"/uploads/images/{unique_filename}")
+
     keyword_list = [k.strip() for k in keywords.split(",")] if keywords else []
 
     property_data = {
@@ -168,7 +185,8 @@ async def create_property(
         "irrigation": irrigation,
         "nearby_town": nearby_town,
         "distance_from_town_km": distance_from_town_km,
-        "documents": documents
+        "documents": documents,
+        "images": images
     }
     
     # Remove None values
@@ -260,8 +278,12 @@ async def update_property(
     nearby_town: str = Form(None),
     distance_from_town_km: float = Form(None),
     retained_documents: str = Form("[]"), # JSON array of document objects to keep
+    retained_documents_json: Optional[str] = Form(None), # fallback name
     doc_types: List[str] = Form([]),
     files: List[UploadFile] = File([]),
+    retained_images: str = Form("[]"), # JSON array of image strings to keep in order
+    retained_images_json: Optional[str] = Form(None), # fallback name
+    image_files: List[UploadFile] = File([]),
     db=Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -295,8 +317,9 @@ async def update_property(
 
     # Process documents
     documents = []
+    docs_payload_str = retained_documents_json or retained_documents or "[]"
     try:
-        retained = json.loads(retained_documents)
+        retained = json.loads(docs_payload_str)
         if isinstance(retained, list):
             documents.extend(retained)
     except:
@@ -320,8 +343,30 @@ async def update_property(
                 
     update_fields["documents"] = documents
 
-    if not update_fields:
-        raise HTTPException(status_code=400, detail="No valid fields to update")
+    # Process images (retained + new)
+    images = []
+    imgs_payload_str = retained_images_json or retained_images or "[]"
+    try:
+        retained_imgs = json.loads(imgs_payload_str)
+        if isinstance(retained_imgs, list):
+            images.extend(retained_imgs)
+    except:
+        pass
+
+    if len(image_files) > 0 and image_files[0].filename:
+        os.makedirs("uploads/images", exist_ok=True)
+        for img in image_files:
+            if img.filename:
+                ext = img.filename.split('.')[-1]
+                unique_filename = f"{uuid.uuid4().hex}.{ext}"
+                filepath = os.path.join("uploads/images", unique_filename)
+                
+                with open(filepath, "wb") as buffer:
+                    shutil.copyfileobj(img.file, buffer)
+                    
+                images.append(f"/uploads/images/{unique_filename}")
+
+    update_fields["images"] = images
 
     await db.properties.update_one(
         {"_id": ObjectId(property_id)},

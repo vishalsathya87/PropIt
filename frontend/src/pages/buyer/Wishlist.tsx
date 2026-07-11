@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { api, getToken } from '../../lib/api';
 import type { Property } from '../../lib/types';
 import { formatPrice } from '../../lib/utils';
-import { PROPERTY_IMAGES } from '../../lib/types';
+import { getPropertyImageUrl } from '../../lib/types';
 
 export default function Wishlist() {
   const [properties, setProperties] = useState<Property[]>([]);
@@ -98,7 +98,7 @@ export default function Wishlist() {
             <div key={prop.id} className="property-card" style={{ display: 'flex', flexDirection: 'column' }}>
               {/* Image */}
               <div className="card-img" style={{ position: 'relative', height: '200px', overflow: 'hidden' }}>
-                <img src={PROPERTY_IMAGES[prop.type] ?? PROPERTY_IMAGES.default} alt={prop.type} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img src={getPropertyImageUrl(prop)} alt={prop.type} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 
                 {/* Remove heart button */}
                 <button

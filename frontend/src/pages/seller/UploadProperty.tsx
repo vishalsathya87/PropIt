@@ -1,6 +1,72 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { api } from '../../lib/api';
+import FileDropzone from '../../components/common/FileDropzone';
+import DraggableGrid from '../../components/common/DraggableGrid';
+
+interface DocUploadItem {
+  type: string;
+  file: File;
+}
+
+function ImageThumbnail({ file, index, isDragging, onRemove }: {
+  file: File;
+  index: number;
+  isDragging: boolean;
+  onRemove: () => void;
+}) {
+  const [url, setUrl] = useState('');
+  useEffect(() => {
+    const objectUrl = URL.createObjectURL(file);
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file]);
+
+  if (!url) return null;
+
+  return (
+    <div
+      style={{
+        position: 'relative',
+        height: '90px',
+        borderRadius: '6px',
+        border: isDragging ? '2.5px solid #101010' : '1px solid #e5e7eb',
+        overflow: 'hidden',
+        cursor: 'grabbing',
+        background: '#f4f4f4',
+        boxShadow: 'rgba(36, 36, 36, 0.08) 0px 4px 12px 0px',
+        opacity: 1,
+        width: '100%',
+        transition: 'all 0.25s ease'
+      }}
+    >
+      <img src={url} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      {index === 0 && (
+        <span style={{
+          position: 'absolute', bottom: '4px', left: '4px',
+          background: '#101010', color: '#ffffff', fontSize: '0.625rem',
+          padding: '2px 6px', borderRadius: '4px', fontWeight: 600,
+          textTransform: 'uppercase', letterSpacing: '0.02em'
+        }}>
+          Cover
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={onRemove}
+        style={{
+          position: 'absolute', top: '4px', right: '4px',
+          background: '#ffffff', border: '1px solid #e5e7eb',
+          borderRadius: '50%', width: '20px', height: '20px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', color: '#ff3b30', fontSize: '0.85rem', fontWeight: 700
+        }}
+      >
+        &times;
+      </button>
+    </div>
+  );
+}
 
 export default function UploadProperty() {
   const [city, setCity] = useState('');
@@ -22,16 +88,15 @@ export default function UploadProperty() {
   const [irrigation, setIrrigation] = useState(false);
   const [keywords, setKeywords] = useState('');
 
-  const [docs, setDocs] = useState<{ type: string; file: File | null }[]>([
-    { type: 'Patta', file: null }
-  ]);
-
+  const [docs, setDocs] = useState<DocUploadItem[]>([]);
+  const [images, setImages] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  const addDocument = () => {
-    setDocs([...docs, { type: 'Patta', file: null }]);
+  const handleDocsSelected = (files: File[]) => {
+    const newDocs = files.map(file => ({ type: 'Patta', file }));
+    setDocs(prev => [...prev, ...newDocs]);
   };
 
   const handleDocTypeChange = (index: number, val: string) => {
@@ -40,8 +105,46 @@ export default function UploadProperty() {
     setDocs(newDocs);
   };
 
+  const handleImagesSelected = async (files: File[]) => {
+    const imageFiles = files.filter(f => f.type.startsWith('image/'));
+    const validated: File[] = [];
+    let hasPortrait = false;
+
+    for (const file of imageFiles) {
+      const isLandscape = await new Promise<boolean>((resolve) => {
+        const img = new Image();
+        img.src = URL.createObjectURL(file);
+        img.onload = () => {
+          URL.revokeObjectURL(img.src);
+          // Strictly width > height to reject portrait and square layouts
+          resolve(img.width > img.height);
+        };
+        img.onerror = () => {
+          resolve(false);
+        };
+      });
+      if (isLandscape) {
+        validated.push(file);
+      } else {
+        hasPortrait = true;
+      }
+    }
+
+    if (hasPortrait) {
+      setError('Portrait images are not allowed. Please upload landscape photos only.');
+    }
+
+    if (validated.length > 0) {
+      setImages(prev => [...prev, ...validated]);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (docs.length === 0) {
+      setError('Please upload at least one deed document (e.g. Patta, EC).');
+      return;
+    }
     setLoading(true);
     setError('');
 
@@ -64,11 +167,15 @@ export default function UploadProperty() {
     formData.append('irrigation', irrigation.toString());
     formData.append('keywords', keywords);
 
+    // Append documents
     docs.forEach((doc) => {
-      if (doc.file) {
-        formData.append('files', doc.file);
-        formData.append('doc_types', doc.type);
-      }
+      formData.append('files', doc.file);
+      formData.append('doc_types', doc.type);
+    });
+
+    // Append images in their chosen order
+    images.forEach((img) => {
+      formData.append('image_files', img);
     });
 
     try {
@@ -84,57 +191,57 @@ export default function UploadProperty() {
   };
 
   return (
-    <div style={{ background: '#faf9f6', minHeight: '100vh', padding: '3rem 1.5rem' }}>
-      <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+    <div style={{ background: '#f4f4f4', minHeight: '100vh', padding: '3rem 1.5rem' }}>
+      <div style={{ maxWidth: '900px', margin: '0 auto' }}>
         
         <div style={{ marginBottom: '1.5rem' }}>
           <Link to="/dashboard/seller" style={{
-            color: '#0f2042', textDecoration: 'none', fontWeight: 700, fontSize: '0.85rem',
+            color: '#101010', textDecoration: 'none', fontWeight: 600, fontSize: '0.875rem',
             display: 'inline-flex', alignItems: 'center', gap: '0.3rem'
           }}>
-            ← Back to Dashboard
+            &larr; Back to Dashboard
           </Link>
         </div>
 
-        <div style={{ background: '#ffffff', border: '1px solid rgba(15, 23, 42, 0.06)', borderRadius: '12px', padding: '2.5rem', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.015)' }}>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', marginBottom: '2rem' }}>
+        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '2.5rem', boxShadow: 'rgba(36, 36, 36, 0.05) 0px 4px 8px 0px' }}>
+          <h2 style={{ fontFamily: "'Poppins', sans-serif", fontSize: '1.5rem', fontWeight: 600, color: '#101010', marginBottom: '2rem', letterSpacing: '0.01em' }}>
             List New Property
           </h2>
 
           {error && <div className="error-box" style={{ marginBottom: '1.5rem' }}>{error}</div>}
 
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
             
             {/* 1. Location Details */}
             <div>
-              <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', borderBottom: '1px solid rgba(15, 23, 42, 0.06)', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>
+              <h3 style={{ fontFamily: "'Poppins', sans-serif", fontSize: '1.0625rem', fontWeight: 600, color: '#101010', borderBottom: '1px solid #e5e7eb', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>
                 Location Details
               </h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'rgba(15, 23, 42, 0.55)', marginBottom: '0.4rem' }}>City / Village</label>
-                  <input type="text" required value={city} onChange={e => setCity(e.target.value)} className="form-input" style={{ width: '100%', background: '#ffffff', color: '#0f172a' }} placeholder="e.g. Pollachi" />
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#242424', marginBottom: '0.5rem', letterSpacing: '-0.2px' }}>City / Village</label>
+                  <input type="text" required value={city} onChange={e => setCity(e.target.value)} className="form-input" placeholder="e.g. Pollachi" />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'rgba(15, 23, 42, 0.55)', marginBottom: '0.4rem' }}>District</label>
-                  <input type="text" required value={district} onChange={e => setDistrict(e.target.value)} className="form-input" style={{ width: '100%', background: '#ffffff', color: '#0f172a' }} placeholder="e.g. Coimbatore" />
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#242424', marginBottom: '0.5rem', letterSpacing: '-0.2px' }}>District</label>
+                  <input type="text" required value={district} onChange={e => setDistrict(e.target.value)} className="form-input" placeholder="e.g. Coimbatore" />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'rgba(15, 23, 42, 0.55)', marginBottom: '0.4rem' }}>State</label>
-                  <input type="text" value={state} onChange={e => setState(e.target.value)} className="form-input" style={{ width: '100%', background: '#ffffff', color: '#0f172a' }} />
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#242424', marginBottom: '0.5rem', letterSpacing: '-0.2px' }}>State</label>
+                  <input type="text" value={state} onChange={e => setState(e.target.value)} className="form-input" />
                 </div>
               </div>
             </div>
 
             {/* 2. Property Info */}
             <div>
-              <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', borderBottom: '1px solid rgba(15, 23, 42, 0.06)', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>
+              <h3 style={{ fontFamily: "'Poppins', sans-serif", fontSize: '1.0625rem', fontWeight: 600, color: '#101010', borderBottom: '1px solid #e5e7eb', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>
                 Property Specifications
               </h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.1rem', marginBottom: '1.1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.25rem' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'rgba(15, 23, 42, 0.55)', marginBottom: '0.4rem' }}>Property Type</label>
-                  <select value={type} onChange={e => setType(e.target.value)} className="form-input" style={{ width: '100%', background: '#ffffff', color: '#0f172a' }}>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#242424', marginBottom: '0.5rem', letterSpacing: '-0.2px' }}>Property Type</label>
+                  <select value={type} onChange={e => setType(e.target.value)} className="form-input" style={{ background: '#ffffff' }}>
                     <option>Agricultural Land</option>
                     <option>Farm Land</option>
                     <option>Flat Plot</option>
@@ -143,18 +250,18 @@ export default function UploadProperty() {
                   </select>
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'rgba(15, 23, 42, 0.55)', marginBottom: '0.4rem' }}>Asking Price (₹)</label>
-                  <input type="number" required value={price} onChange={e => setPrice(e.target.value)} className="form-input" style={{ width: '100%', background: '#ffffff', color: '#0f172a' }} placeholder="e.g. 1500000" />
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#242424', marginBottom: '0.5rem', letterSpacing: '-0.2px' }}>Asking Price (₹)</label>
+                  <input type="number" required value={price} onChange={e => setPrice(e.target.value)} className="form-input" placeholder="e.g. 1500000" />
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.1rem', marginBottom: '1.1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.25rem' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'rgba(15, 23, 42, 0.55)', marginBottom: '0.4rem' }}>Total Area</label>
-                  <input type="number" step="0.01" required value={area} onChange={e => setArea(e.target.value)} className="form-input" style={{ width: '100%', background: '#ffffff', color: '#0f172a' }} placeholder="e.g. 2.5" />
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#242424', marginBottom: '0.5rem', letterSpacing: '-0.2px' }}>Total Area</label>
+                  <input type="number" step="0.01" required value={area} onChange={e => setArea(e.target.value)} className="form-input" placeholder="e.g. 2.5" />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'rgba(15, 23, 42, 0.55)', marginBottom: '0.4rem' }}>Area Unit</label>
-                  <select value={areaUnit} onChange={e => setAreaUnit(e.target.value)} className="form-input" style={{ width: '100%', background: '#ffffff', color: '#0f172a' }}>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#242424', marginBottom: '0.5rem', letterSpacing: '-0.2px' }}>Area Unit</label>
+                  <select value={areaUnit} onChange={e => setAreaUnit(e.target.value)} className="form-input" style={{ background: '#ffffff' }}>
                     <option value="acres">Acres</option>
                     <option value="sq_ft">Sq. Ft.</option>
                     <option value="cents">Cents</option>
@@ -163,20 +270,20 @@ export default function UploadProperty() {
                 </div>
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'rgba(15, 23, 42, 0.55)', marginBottom: '0.4rem' }}>Description / Overview</label>
-                <textarea rows={3} value={description} onChange={e => setDescription(e.target.value)} className="form-input" style={{ width: '100%', background: '#ffffff', color: '#0f172a', resize: 'vertical' }} placeholder="Describe key attributes — landmarks, access paths, survey records..." />
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#242424', marginBottom: '0.5rem', letterSpacing: '-0.2px' }}>Description / Overview</label>
+                <textarea rows={3} value={description} onChange={e => setDescription(e.target.value)} className="form-input" style={{ resize: 'vertical' }} placeholder="Describe key attributes — landmarks, access paths, survey records..." />
               </div>
             </div>
 
             {/* 3. Features & Attributes */}
             <div>
-              <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', borderBottom: '1px solid rgba(15, 23, 42, 0.06)', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>
+              <h3 style={{ fontFamily: "'Poppins', sans-serif", fontSize: '1.0625rem', fontWeight: 600, color: '#101010', borderBottom: '1px solid #e5e7eb', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>
                 Land Features
               </h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.1rem', marginBottom: '1.1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.25rem' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'rgba(15, 23, 42, 0.55)', marginBottom: '0.4rem' }}>Soil Type</label>
-                  <select value={soilType} onChange={e => setSoilType(e.target.value)} className="form-input" style={{ width: '100%', background: '#ffffff', color: '#0f172a' }}>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#242424', marginBottom: '0.5rem', letterSpacing: '-0.2px' }}>Soil Type</label>
+                  <select value={soilType} onChange={e => setSoilType(e.target.value)} className="form-input" style={{ background: '#ffffff' }}>
                     <option value="">-- Select --</option>
                     <option>Red Soil</option>
                     <option>Black Soil</option>
@@ -187,8 +294,8 @@ export default function UploadProperty() {
                   </select>
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'rgba(15, 23, 42, 0.55)', marginBottom: '0.4rem' }}>Water Source</label>
-                  <select value={waterSource} onChange={e => setWaterSource(e.target.value)} className="form-input" style={{ width: '100%', background: '#ffffff', color: '#0f172a' }}>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#242424', marginBottom: '0.5rem', letterSpacing: '-0.2px' }}>Water Source</label>
+                  <select value={waterSource} onChange={e => setWaterSource(e.target.value)} className="form-input" style={{ background: '#ffffff' }}>
                     <option value="">-- Select --</option>
                     <option>Borewell</option>
                     <option>Open Well</option>
@@ -199,10 +306,10 @@ export default function UploadProperty() {
                   </select>
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.1rem', marginBottom: '1.1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.25rem' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'rgba(15, 23, 42, 0.55)', marginBottom: '0.4rem' }}>Road Access</label>
-                  <select value={roadAccess} onChange={e => setRoadAccess(e.target.value)} className="form-input" style={{ width: '100%', background: '#ffffff', color: '#0f172a' }}>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#242424', marginBottom: '0.5rem', letterSpacing: '-0.2px' }}>Road Access</label>
+                  <select value={roadAccess} onChange={e => setRoadAccess(e.target.value)} className="form-input" style={{ background: '#ffffff' }}>
                     <option value="">-- Select --</option>
                     <option>National Highway</option>
                     <option>State Highway</option>
@@ -213,8 +320,8 @@ export default function UploadProperty() {
                   </select>
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'rgba(15, 23, 42, 0.55)', marginBottom: '0.4rem' }}>Fencing</label>
-                  <select value={fencing} onChange={e => setFencing(e.target.value)} className="form-input" style={{ width: '100%', background: '#ffffff', color: '#0f172a' }}>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#242424', marginBottom: '0.5rem', letterSpacing: '-0.2px' }}>Fencing</label>
+                  <select value={fencing} onChange={e => setFencing(e.target.value)} className="form-input" style={{ background: '#ffffff' }}>
                     <option value="">-- Select --</option>
                     <option>Compound Wall</option>
                     <option>Wire Fence</option>
@@ -223,24 +330,24 @@ export default function UploadProperty() {
                   </select>
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.1rem', marginBottom: '1.1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.25rem' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'rgba(15, 23, 42, 0.55)', marginBottom: '0.4rem' }}>Nearest Town</label>
-                  <input type="text" value={nearbyTown} onChange={e => setNearbyTown(e.target.value)} className="form-input" style={{ width: '100%', background: '#ffffff', color: '#0f172a' }} placeholder="e.g. Pollachi" />
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#242424', marginBottom: '0.5rem', letterSpacing: '-0.2px' }}>Nearest Town</label>
+                  <input type="text" value={nearbyTown} onChange={e => setNearbyTown(e.target.value)} className="form-input" placeholder="e.g. Pollachi" />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'rgba(15, 23, 42, 0.55)', marginBottom: '0.4rem' }}>Distance from Town (km)</label>
-                  <input type="number" step="0.1" value={distFromTown} onChange={e => setDistFromTown(e.target.value)} className="form-input" style={{ width: '100%', background: '#ffffff', color: '#0f172a' }} placeholder="e.g. 5" />
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#242424', marginBottom: '0.5rem', letterSpacing: '-0.2px' }}>Distance from Town (km)</label>
+                  <input type="number" step="0.1" value={distFromTown} onChange={e => setDistFromTown(e.target.value)} className="form-input" placeholder="e.g. 5" />
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '1.5rem', marginTop: '1rem' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, color: '#0f172a' }}>
-                  <input type="checkbox" checked={electricity} onChange={e => setElectricity(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#0f2042' }} />
+              <div style={{ display: 'flex', gap: '1.5rem', marginTop: '1.25rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9375rem', fontWeight: 500, color: '#242424' }}>
+                  <input type="checkbox" checked={electricity} onChange={e => setElectricity(e.target.checked)} style={{ width: '18px', height: '18px', accentColor: '#101010' }} />
                   Electricity Available
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, color: '#0f172a' }}>
-                  <input type="checkbox" checked={irrigation} onChange={e => setIrrigation(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#0f2042' }} />
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9375rem', fontWeight: 500, color: '#242424' }}>
+                  <input type="checkbox" checked={irrigation} onChange={e => setIrrigation(e.target.checked)} style={{ width: '18px', height: '18px', accentColor: '#101010' }} />
                   Irrigation Facility
                 </label>
               </div>
@@ -248,70 +355,103 @@ export default function UploadProperty() {
 
             {/* 4. Search Keywords */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'rgba(15, 23, 42, 0.55)', marginBottom: '0.4rem' }}>Keywords (Comma separated)</label>
-              <input type="text" value={keywords} onChange={e => setKeywords(e.target.value)} className="form-input" style={{ width: '100%', background: '#ffffff', color: '#0f172a' }} placeholder="e.g. lake view, clear title, highway access" />
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#242424', marginBottom: '0.5rem', letterSpacing: '-0.2px' }}>Keywords (Comma separated)</label>
+              <input type="text" value={keywords} onChange={e => setKeywords(e.target.value)} className="form-input" placeholder="e.g. lake view, clear title, highway access" />
             </div>
 
-            {/* 5. Upload Documents */}
-            <div>
-              <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', borderBottom: '1px solid rgba(15, 23, 42, 0.06)', paddingBottom: '0.5rem', marginBottom: '0.5rem' }}>
-                Upload Documents
-              </h3>
-              <p style={{ fontSize: '0.8rem', color: 'rgba(15, 23, 42, 0.55)', marginBottom: '1.25rem' }}>
-                Please upload official government records. All files are encrypted and verified privately.
-              </p>
+            {/* 5. Documents & Images Side-by-Side */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '2rem' }}>
+              
+              {/* Document Dropzone & List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <h3 style={{ fontFamily: "'Poppins', sans-serif", fontSize: '1.0625rem', fontWeight: 600, color: '#101010', borderBottom: '1px solid #e5e7eb', paddingBottom: '0.5rem', margin: 0 }}>
+                  Upload Documents
+                </h3>
+                <FileDropzone
+                  label="Deed Documents"
+                  helperText="Click or drag to upload • PDF or JPG"
+                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                  multiple
+                  onFilesSelected={handleDocsSelected}
+                />
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {docs.map((doc, index) => (
-                  <div key={index} style={{
-                    display: 'flex', gap: '0.75rem', padding: '1rem', background: 'rgba(15, 23, 42, 0.02)',
-                    border: '1px solid rgba(15, 23, 42, 0.06)', borderRadius: '6px', alignItems: 'center'
-                  }}>
-                    <select
-                      className="form-input"
-                      style={{ width: '180px', background: '#ffffff', color: '#0f172a' }}
-                      value={doc.type} onChange={(e) => handleDocTypeChange(index, e.target.value)}
-                    >
-                      <option>Patta</option>
-                      <option>Chitta</option>
-                      <option>FMB Sketch</option>
-                      <option>A-Register</option>
-                      <option>Encumbrance Certificate (EC)</option>
-                      <option>Parent Document</option>
-                      <option>Other</option>
-                    </select>
-
-                    <input type="file" required onChange={(e) => {
-                      const newDocs = [...docs];
-                      newDocs[index].file = e.target.files ? e.target.files[0] : null;
-                      setDocs(newDocs);
-                    }} style={{ flex: 1, fontSize: '0.8rem', color: 'rgba(15, 23, 42, 0.7)' }} />
-
-                    {docs.length > 1 && (
-                      <button type="button" onClick={() => setDocs(docs.filter((_, i) => i !== index))} style={{
-                        background: 'none', border: 'none', color: '#ff3b30', cursor: 'pointer', padding: '0.25rem'
+                {docs.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem' }}>
+                    {docs.map((doc, index) => (
+                      <div key={index} style={{
+                        display: 'flex', gap: '0.5rem', padding: '0.75rem', background: '#ffffff',
+                        border: '1px solid #e5e7eb', borderRadius: '6px', alignItems: 'center'
                       }}>
-                        <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    )}
+                        <select
+                          className="form-input"
+                          style={{ width: '140px', background: '#ffffff', padding: '0.4rem 0.6rem', fontSize: '0.8125rem' }}
+                          value={doc.type} onChange={(e) => handleDocTypeChange(index, e.target.value)}
+                        >
+                          <option>Patta</option>
+                          <option>Chitta</option>
+                          <option>FMB Sketch</option>
+                          <option>A-Register</option>
+                          <option>Encumbrance Certificate (EC)</option>
+                          <option>Parent Document</option>
+                          <option>Other</option>
+                        </select>
+                        <span style={{ flex: 1, fontSize: '0.8125rem', color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {doc.file.name}
+                        </span>
+                        <button type="button" onClick={() => setDocs(docs.filter((_, i) => i !== index))} style={{
+                          background: 'none', border: 'none', color: '#ff3b30', cursor: 'pointer', display: 'flex', alignItems: 'center'
+                        }}>
+                          <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
 
-              <button type="button" onClick={addDocument} style={{
-                background: 'none', border: 'none', color: '#b8963e', fontWeight: 800,
-                fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem',
-                marginTop: '1rem'
-              }}>
-                + Add Another Document
-              </button>
+              {/* Image Dropzone & Reorder Grid */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <h3 style={{ fontFamily: "'Poppins', sans-serif", fontSize: '1.0625rem', fontWeight: 600, color: '#101010', borderBottom: '1px solid #e5e7eb', paddingBottom: '0.5rem', margin: 0 }}>
+                  Property Gallery Images
+                </h3>
+                <FileDropzone
+                  label="Gallery Photos"
+                  helperText="Click or drag to upload • Landscape only"
+                  accept="image/*"
+                  multiple
+                  isImageDropzone
+                  onFilesSelected={handleImagesSelected}
+                />
+
+                {images.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.5rem', fontWeight: 500 }}>
+                      💡 Tip: Drag images to set order. The first image will be the primary cover listing.
+                    </p>
+                    <DraggableGrid
+                      items={images}
+                      onChange={setImages}
+                      keyExtractor={(imgFile) => `${imgFile.name}-${imgFile.size}-${imgFile.lastModified}`}
+                      renderItem={(imgFile, index, isDragging) => (
+                        <ImageThumbnail
+                          file={imgFile}
+                          index={index}
+                          isDragging={isDragging}
+                          onRemove={() => setImages(prev => prev.filter((_, i) => i !== index))}
+                        />
+                      )}
+                    />
+                  </div>
+                )}
+              </div>
+
             </div>
 
             {/* Submit Block */}
-            <div style={{ paddingTop: '1.5rem', borderTop: '1px solid rgba(15, 23, 42, 0.06)' }}>
-              <button type="submit" disabled={loading} className="btn-primary" style={{ width: '100%', padding: '1rem' }}>
+            <div style={{ paddingTop: '1.5rem', borderTop: '1px solid #e5e7eb', marginTop: '1rem' }}>
+              <button type="submit" disabled={loading} className="btn-primary" style={{ width: '100%', padding: '1rem', borderRadius: '8px' }}>
                 {loading ? 'Publishing Registry...' : 'SUBMIT PROPERTY FOR VERIFICATION'}
               </button>
             </div>

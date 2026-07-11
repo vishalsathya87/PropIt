@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import type { Property } from '../../lib/types';
 import { formatPrice } from '../../lib/utils';
+import { PROPERTY_IMAGES } from '../../lib/types';
 
 interface DetailedProperty extends Property {
   unlocked?: boolean;
@@ -16,6 +17,7 @@ export default function PropertyDetails() {
   const [loading, setLoading] = useState(true);
   const [unlocking, setUnlocking] = useState(false);
   const [error, setError] = useState('');
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   useEffect(() => {
     api.get<DetailedProperty>(`/properties/${id}`)
@@ -52,6 +54,16 @@ export default function PropertyDetails() {
     </div>
   );
 
+  // Parse all gallery images (with fallback to default categories)
+  const rootUrl = import.meta.env.VITE_API_URL 
+    ? import.meta.env.VITE_API_URL.replace('/api/v1', '') 
+    : 'http://localhost:8000';
+  const galleryImages = prop.images && prop.images.length > 0
+    ? prop.images.map(img => img.startsWith('http') ? img : `${rootUrl}${img}`)
+    : [PROPERTY_IMAGES[prop.type] ?? PROPERTY_IMAGES.default];
+
+  const activeImage = galleryImages[activeImageIndex] || galleryImages[0];
+
   return (
     <div className="fade-in" style={{ backgroundColor: '#f4f4f4', minHeight: '100vh', padding: '2rem 1.5rem' }}>
       <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
@@ -70,34 +82,152 @@ export default function PropertyDetails() {
           {/* Main Content Column */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             
-            {/* Image Banner */}
-            <div style={{
-              background: '#ffffff', borderRadius: '12px', overflow: 'hidden',
-              position: 'relative', height: '400px',
-              boxShadow: 'rgba(36, 36, 36, 0.05) 0px 4px 8px 0px'
-            }}>
+            {/* Interactive Image Gallery */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <div style={{
-                position: 'absolute', inset: 0,
-                backgroundImage: 'url(https://images.unsplash.com/photo-1524813686514-a57563d77965?auto=format&fit=crop&q=80)',
-                backgroundSize: 'cover', backgroundPosition: 'center',
-                filter: 'brightness(0.85)'
-              }} />
-              <div style={{
-                position: 'absolute', inset: 0,
-                display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
-                padding: '2rem', background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 60%)',
-                color: '#ffffff'
+                background: '#ffffff', borderRadius: '12px', overflow: 'hidden',
+                position: 'relative', height: '400px',
+                boxShadow: 'rgba(36, 36, 36, 0.05) 0px 4px 8px 0px'
               }}>
-                <span className="badge-active" style={{ alignSelf: 'flex-start', marginBottom: '0.75rem' }}>
-                  {prop.type}
-                </span>
-                <h1 style={{ fontFamily: "'Poppins', sans-serif", fontSize: '2rem', fontWeight: 600, margin: 0, letterSpacing: '0.01em' }}>
-                  {prop.city}
-                </h1>
-                <p style={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.875rem', marginTop: '0.25rem', fontWeight: 400, letterSpacing: '-0.2px' }}>
-                  {prop.district ? `${prop.district}, ` : ''}{prop.state}
-                </p>
+                <div style={{
+                  position: 'absolute',
+                  inset: 0,
+                  backgroundImage: `url(${activeImage})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  filter: 'brightness(0.9)',
+                  transition: 'background-image 0.25s ease'
+                }} />
+
+                {/* Left/Right Carousel Controls */}
+                {galleryImages.length > 1 && (
+                  <>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setActiveImageIndex(prev => (prev === 0 ? galleryImages.length - 1 : prev - 1));
+                      }}
+                      style={{
+                        position: 'absolute',
+                        left: '1.25rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        width: '42px',
+                        height: '42px',
+                        borderRadius: '50%',
+                        background: 'rgba(255, 255, 255, 0.9)',
+                        border: '1.5px solid rgba(0, 0, 0, 0.05)',
+                        backdropFilter: 'blur(8px)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        zIndex: 20,
+                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.12)',
+                        transition: 'all 0.15s ease',
+                        color: '#101010'
+                      }}
+                      onMouseEnter={el => {
+                        el.currentTarget.style.transform = 'translateY(-50%) scale(1.08)';
+                        el.currentTarget.style.background = '#ffffff';
+                      }}
+                      onMouseLeave={el => {
+                        el.currentTarget.style.transform = 'translateY(-50%) scale(1)';
+                        el.currentTarget.style.background = 'rgba(255, 255, 255, 0.9)';
+                      }}
+                      title="Previous Image"
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                      </svg>
+                    </button>
+
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setActiveImageIndex(prev => (prev === galleryImages.length - 1 ? 0 : prev + 1));
+                      }}
+                      style={{
+                        position: 'absolute',
+                        right: '1.25rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        width: '42px',
+                        height: '42px',
+                        borderRadius: '50%',
+                        background: 'rgba(255, 255, 255, 0.9)',
+                        border: '1.5px solid rgba(0, 0, 0, 0.05)',
+                        backdropFilter: 'blur(8px)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        zIndex: 20,
+                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.12)',
+                        transition: 'all 0.15s ease',
+                        color: '#101010'
+                      }}
+                      onMouseEnter={el => {
+                        el.currentTarget.style.transform = 'translateY(-50%) scale(1.08)';
+                        el.currentTarget.style.background = '#ffffff';
+                      }}
+                      onMouseLeave={el => {
+                        el.currentTarget.style.transform = 'translateY(-50%) scale(1)';
+                        el.currentTarget.style.background = 'rgba(255, 255, 255, 0.9)';
+                      }}
+                      title="Next Image"
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                      </svg>
+                    </button>
+                  </>
+                )}
+
+                <div style={{
+                  position: 'absolute', inset: 0,
+                  display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+                  padding: '2rem', background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 60%)',
+                  color: '#ffffff',
+                  pointerEvents: 'none' // allow clicking buttons behind the overlay text if needed
+                }}>
+                  <span className="badge-active" style={{ alignSelf: 'flex-start', marginBottom: '0.75rem' }}>
+                    {prop.type}
+                  </span>
+                  <h1 style={{ fontFamily: "'Poppins', sans-serif", fontSize: '2rem', fontWeight: 600, margin: 0, letterSpacing: '0.01em' }}>
+                    {prop.city}
+                  </h1>
+                  <p style={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.875rem', marginTop: '0.25rem', fontWeight: 400, letterSpacing: '-0.2px' }}>
+                    {prop.district ? `${prop.district}, ` : ''}{prop.state}
+                  </p>
+                </div>
               </div>
+
+              {/* Thumbnails Row */}
+              {galleryImages.length > 1 && (
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  {galleryImages.map((img, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setActiveImageIndex(idx)}
+                      style={{
+                        width: '72px', height: '54px', borderRadius: '6px',
+                        overflow: 'hidden', padding: 0, cursor: 'pointer',
+                        border: activeImageIndex === idx ? '2.5px solid #101010' : '1px solid #e5e7eb',
+                        opacity: activeImageIndex === idx ? 1 : 0.72,
+                        transition: 'all 0.15s ease',
+                        background: '#ffffff'
+                      }}
+                      onMouseEnter={e => { if (activeImageIndex !== idx) e.currentTarget.style.opacity = '1'; }}
+                      onMouseLeave={e => { if (activeImageIndex !== idx) e.currentTarget.style.opacity = '0.72'; }}
+                    >
+                      <img src={img} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="thumb" />
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Land Specs & Overview */}

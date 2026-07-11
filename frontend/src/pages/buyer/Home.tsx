@@ -1,27 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { api, getToken } from '../../lib/api';
-import { PROPERTY_IMAGES } from '../../lib/types';
+import { getPropertyImageUrl, type Property } from '../../lib/types';
 import { formatPrice } from '../../lib/utils';
 import TextType from '../../components/TextType';
-
-interface Property {
-  id: string;
-  city: string;
-  district: string;
-  state: string;
-  area: number;
-  area_unit: string;
-  price: number;
-  type: string;
-  view_count: number;
-  soil_type?: string;
-  water_source?: string;
-  road_access?: string;
-  electricity: boolean;
-  irrigation: boolean;
-  keywords: string[];
-}
 
 const TYPES = ['', 'Agricultural Land', 'Farm Land', 'Flat Plot', 'Residential Plot', 'Commercial Plot'];
 
@@ -289,7 +271,7 @@ export default function Home() {
                   {/* Image */}
                   <div className="card-img" style={{ position: 'relative', height: '210px', overflow: 'hidden', background: '#f4f4f4', flexShrink: 0 }}>
                     <img
-                      src={PROPERTY_IMAGES[p.type] ?? PROPERTY_IMAGES.default}
+                      src={getPropertyImageUrl(p)}
                       alt={p.type}
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
