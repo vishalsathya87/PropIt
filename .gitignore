@@ -1,0 +1,8 @@
+backend/venv/
+backend/.env
+__pycache__/
+*.pyc
+node_modules/
+.DS_Store
+backend/uploads/
+node-v20/
