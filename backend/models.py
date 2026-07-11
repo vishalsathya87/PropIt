@@ -111,6 +111,7 @@ class PropertyCreate(BaseModel):
     keywords: List[str] = []
     description: Optional[str] = None
     documents: List[DocumentItem] = []
+    images: List[str] = []
     # Extra details for better search
     soil_type: Optional[str] = None        # Red, Black, Alluvial, Laterite
     water_source: Optional[str] = None     # Borewell, Canal, River, Rainfed, None
@@ -132,6 +133,7 @@ class PropertyUpdate(BaseModel):
     area_unit: Optional[str] = None
     keywords: Optional[List[str]] = None
     description: Optional[str] = None
+    images: Optional[List[str]] = None
     soil_type: Optional[str] = None
     water_source: Optional[str] = None
     road_access: Optional[str] = None
