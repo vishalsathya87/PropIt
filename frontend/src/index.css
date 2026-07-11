@@ -843,3 +843,18 @@ body {
 
 
 
+
+/* ── BROWSE PAGE — sticky header mobile offset ── */
+@media (max-width: 640px) {
+  .browse-sticky-header {
+    top: 60px !important;
+  }
+  .browse-sort-select {
+    max-width: 100px;
+    font-size: 0.78rem !important;
+    padding: 0.45rem 0.4rem !important;
+  }
+  .browse-filter-btn-text {
+    display: none;
+  }
+}
