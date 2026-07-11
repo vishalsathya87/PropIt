@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../../lib/api';
+import { api, getToken } from '../../lib/api';
 import { PROPERTY_IMAGES } from '../../lib/types';
 import { formatPrice } from '../../lib/utils';
 
@@ -22,11 +22,15 @@ interface Property {
   keywords: string[];
 }
 
+const TYPES = ['', 'Agricultural Land', 'Farm Land', 'Flat Plot', 'Residential Plot', 'Commercial Plot'];
+
 export default function Home() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
+  const [wishlist, setWishlist] = useState<string[]>([]);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const isLoggedIn = !!getToken();
 
-  // Search & filter state
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('');
   const [filterDistrict, setFilterDistrict] = useState('');
@@ -37,6 +41,11 @@ export default function Home() {
   const [filterWaterSource, setFilterWaterSource] = useState('');
   const [filterRoadAccess, setFilterRoadAccess] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    api.get('/auth/wishlist').then(r => setWishlist(r.data.wishlist)).catch(() => {});
+  }, [isLoggedIn]);
 
   const fetchProperties = useCallback(async () => {
     setLoading(true);
@@ -51,249 +60,305 @@ export default function Home() {
       if (filterMaxArea) params.max_area = filterMaxArea;
       if (filterWaterSource) params.water_source = filterWaterSource;
       if (filterRoadAccess) params.road_access = filterRoadAccess;
-
-      const response = await api.get('/properties/', { params });
-      setProperties(response.data);
-    } catch (error) {
-      console.error("Failed to fetch properties", error);
-    } finally {
-      setLoading(false);
-    }
+      const res = await api.get('/properties/', { params });
+      setProperties(res.data);
+    } catch { /* silent */ }
+    finally { setLoading(false); }
   }, [searchTerm, filterType, filterDistrict, filterMinPrice, filterMaxPrice, filterMinArea, filterMaxArea, filterWaterSource, filterRoadAccess]);
 
-  // Debounced fetch on filter change
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchProperties();
-    }, 400);
-    return () => clearTimeout(timer);
+    const t = setTimeout(fetchProperties, 300);
+    return () => clearTimeout(t);
   }, [fetchProperties]);
 
   const clearFilters = () => {
-    setSearchTerm('');
-    setFilterType('');
-    setFilterDistrict('');
-    setFilterMinPrice('');
-    setFilterMaxPrice('');
-    setFilterMinArea('');
-    setFilterMaxArea('');
-    setFilterWaterSource('');
-    setFilterRoadAccess('');
+    setSearchTerm(''); setFilterType(''); setFilterDistrict('');
+    setFilterMinPrice(''); setFilterMaxPrice('');
+    setFilterMinArea(''); setFilterMaxArea('');
+    setFilterWaterSource(''); setFilterRoadAccess('');
   };
 
-  const hasActiveFilters = filterType || filterDistrict || filterMinPrice || filterMaxPrice || filterMinArea || filterMaxArea || filterWaterSource || filterRoadAccess;
+  const hasActive = filterType || filterDistrict || filterMinPrice || filterMaxPrice
+    || filterMinArea || filterMaxArea || filterWaterSource || filterRoadAccess;
 
-  // formatPrice imported from utils
-
-  const selectClass = "block w-full bg-white border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary text-sm";
-  const inputClass = "block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary text-sm";
+  const toggleWishlist = async (e: React.MouseEvent, id: string) => {
+    e.preventDefault(); e.stopPropagation();
+    if (!isLoggedIn) return;
+    setTogglingId(id);
+    try {
+      const r = await api.post(`/auth/wishlist/${id}`);
+      setWishlist(r.data.wishlist);
+    } catch { /* silent */ }
+    finally { setTogglingId(null); }
+  };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-      {/* Hero */}
-      <div className="text-center max-w-3xl mx-auto mb-10">
-        <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight sm:text-5xl">
-          Find the perfect land for your future.
-        </h1>
-        <p className="mt-4 text-xl text-gray-500">
-          Secure, verified agricultural and flat plots across Tamil Nadu. Direct from verified sellers.
-        </p>
-      </div>
+    <div className="fade-in" style={{ backgroundColor: '#f4f4f4', minHeight: '100vh', paddingBottom: '5rem' }}>
 
-      {/* Search Bar */}
-      <div className="max-w-2xl mx-auto mb-6">
-        <div className="relative rounded-md shadow-sm">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+      {/* ── HERO ── */}
+      <div className="hero-cinematic">
+        <div className="hero-inner">
+
+          <h1 className="hero-title">
+            Land that's truly<br />yours to own.
+          </h1>
+
+          <p className="hero-sub">
+            Every plot survey-certified, every seller verified.<br />No middlemen. No hidden fees. Just land.
+          </p>
+
+          {/* Search bar */}
+          <div className="search-bar" style={{ maxWidth: '680px', marginTop: '0.75rem' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#898989" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginLeft: '0.75rem' }}>
+              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search city, district, village or survey number..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              style={{ fontSize: '1rem', padding: '0.85rem 0.5rem' }}
+            />
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`btn-filter${hasActive ? ' active' : ''}`}
+              style={{ borderRadius: '6px', fontSize: '0.9375rem', padding: '0.625rem 1.25rem' }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+              Filters{hasActive ? ' •' : ''}
+            </button>
+            <button
+              onClick={fetchProperties}
+              className="btn-primary"
+              style={{ borderRadius: '6px', fontSize: '0.9375rem', padding: '0.625rem 1.5rem' }}
+            >
+              Search
+            </button>
           </div>
-          <input
-            type="text"
-            className="focus:ring-primary focus:border-primary block w-full pl-10 pr-12 sm:text-lg border-gray-300 rounded-full py-4 border shadow-sm"
-            placeholder="Search by city, district, keyword…"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-          <button
-            type="button"
-            onClick={() => setShowFilters(!showFilters)}
-            className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-500 hover:text-primary transition-colors"
-            title="Toggle filters"
-          >
-            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
-          </button>
+
+          {/* Type tabs — inside hero */}
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center', marginTop: '0.5rem' }}>
+            {TYPES.map(t => (
+              <button
+                key={t}
+                onClick={() => setFilterType(t)}
+                style={{
+                  padding: '0.45rem 1.1rem',
+                  borderRadius: '9999px',
+                  border: filterType === t ? '1px solid #101010' : '1px solid #e5e7eb',
+                  background: filterType === t ? '#101010' : '#ffffff',
+                  color: filterType === t ? '#ffffff' : '#6b7280',
+                  fontSize: '0.875rem',
+                  fontWeight: filterType === t ? 500 : 400,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  fontFamily: 'inherit',
+                  whiteSpace: 'nowrap',
+                  letterSpacing: '-0.2px'
+                }}
+              >
+                {t || 'All'}
+              </button>
+            ))}
+          </div>
+
         </div>
       </div>
 
-      {/* Filter Panel */}
+      {/* ── EXPANDABLE FILTERS ── */}
       {showFilters && (
-        <div className="max-w-4xl mx-auto mb-8 bg-white border border-gray-200 rounded-xl shadow-sm p-6 animate-[fadeIn_0.2s_ease-out]">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Filters</h3>
-            {hasActiveFilters && (
-              <button onClick={clearFilters} className="text-xs text-red-500 hover:underline">Clear All</button>
-            )}
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Land Type</label>
-              <select value={filterType} onChange={e => setFilterType(e.target.value)} className={selectClass}>
-                <option value="">All Types</option>
-                <option>Agricultural Land</option>
-                <option>Farm Land</option>
-                <option>Flat Plot</option>
-                <option>Residential Plot</option>
-                <option>Commercial Plot</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">District</label>
-              <input type="text" value={filterDistrict} onChange={e => setFilterDistrict(e.target.value)} className={inputClass} placeholder="e.g. Coimbatore" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Min Price (₹)</label>
-              <input type="number" value={filterMinPrice} onChange={e => setFilterMinPrice(e.target.value)} className={inputClass} placeholder="0" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Max Price (₹)</label>
-              <input type="number" value={filterMaxPrice} onChange={e => setFilterMaxPrice(e.target.value)} className={inputClass} placeholder="Any" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Min Area</label>
-              <input type="number" step="0.1" value={filterMinArea} onChange={e => setFilterMinArea(e.target.value)} className={inputClass} placeholder="0" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Max Area</label>
-              <input type="number" step="0.1" value={filterMaxArea} onChange={e => setFilterMaxArea(e.target.value)} className={inputClass} placeholder="Any" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Water Source</label>
-              <select value={filterWaterSource} onChange={e => setFilterWaterSource(e.target.value)} className={selectClass}>
-                <option value="">Any</option>
-                <option>Borewell</option>
-                <option>Open Well</option>
-                <option>Canal</option>
-                <option>River</option>
-                <option>Rainfed</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Road Access</label>
-              <select value={filterRoadAccess} onChange={e => setFilterRoadAccess(e.target.value)} className={selectClass}>
-                <option value="">Any</option>
-                <option>National Highway</option>
-                <option>State Highway</option>
-                <option>District Road</option>
-                <option>Village Road</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Quick Type Chips */}
-      <div className="flex flex-wrap justify-center gap-2 mb-8">
-        {['', 'Agricultural Land', 'Farm Land', 'Flat Plot', 'Residential Plot', 'Commercial Plot'].map(t => (
-          <button
-            key={t}
-            onClick={() => setFilterType(t)}
-            className={`px-4 py-2 rounded-full text-sm font-medium border transition-all ${filterType === t ? 'bg-primary text-white border-primary shadow-sm' : 'bg-white text-gray-600 border-gray-300 hover:border-primary hover:text-primary'}`}
-          >
-            {t || 'All Types'}
-          </button>
-        ))}
-      </div>
-
-      {/* Results Count */}
-      <div className="flex justify-between items-center mb-6">
-        <p className="text-sm text-gray-500">{loading ? 'Searching...' : `${properties.length} properties found`}</p>
-      </div>
-
-      {/* Property Grid */}
-      {loading ? (
-        <div className="text-center py-20">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          <p className="mt-2 text-gray-500">Loading properties...</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-y-10 gap-x-6 sm:grid-cols-2 lg:grid-cols-3 xl:gap-x-8">
-          {properties.length > 0 ? properties.map((property) => (
-            <div key={property.id} className="group relative bg-white border border-gray-200 rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden flex flex-col">
-              <div className="w-full min-h-64 bg-gray-200 aspect-w-1 aspect-h-1 rounded-t-2xl overflow-hidden group-hover:opacity-75 lg:h-64 lg:aspect-none relative">
-                <img
-                  src={PROPERTY_IMAGES[property.type] ?? PROPERTY_IMAGES.default}
-                  alt={property.type}
-                  className="w-full h-full object-center object-cover lg:w-full lg:h-full"
-                />
-                <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold text-gray-900 shadow-sm">
-                  {property.type}
-                </div>
-                {property.district && (
-                  <div className="absolute top-4 right-4 bg-primary/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold text-white shadow-sm">
-                    {property.district}
-                  </div>
-                )}
-              </div>
-              <div className="p-5 flex flex-col flex-grow">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900">
-                      <Link to={`/property/${property.id}`}>
-                        <span aria-hidden="true" className="absolute inset-0" />
-                        {property.city}{property.district ? `, ${property.district}` : ''} 
-                      </Link>
-                    </h3>
-                    <p className="mt-1 text-sm text-gray-500">Exact location hidden until unlocked</p>
-                  </div>
-                </div>
-                
-                {/* Feature Tags — using SVG to avoid emoji encoding issues */}
-                <div className="flex flex-wrap gap-1.5 mt-3">
-                  {property.water_source && (
-                    <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
-                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M7.293 1.293a1 1 0 011.414 0l7 7A1 1 0 0116 10v7a1 1 0 01-1 1H9a1 1 0 01-1-1v-3H5a1 1 0 01-1-1V10a1 1 0 01.293-.707l3-3zM6 10.414V15h2v-4.586L6 10.414zm4 0V15h4v-4.586l-4-4V10.414z" clipRule="evenodd" /></svg>
-                      {property.water_source}
-                    </span>
-                  )}
-                  {property.road_access && (
-                    <span className="inline-flex items-center gap-1 text-xs bg-yellow-50 text-yellow-700 px-2 py-0.5 rounded-full">
-                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h2V2h4v2h2a2 2 0 012 2v8a2 2 0 01-2 2h-2v2H8v-2zm0-10v8h4V6H8z"/></svg>
-                      {property.road_access}
-                    </span>
-                  )}
-                  {property.electricity && (
-                    <span className="inline-flex items-center gap-1 text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full">
-                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd"/></svg>
-                      Electricity
-                    </span>
-                  )}
-                  {property.irrigation && (
-                    <span className="inline-flex items-center gap-1 text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full">
-                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M5.5 16a3.5 3.5 0 01-.369-6.98 4 4 0 117.753-1.977A4.5 4.5 0 1113.5 16h-8z"/></svg>
-                      Irrigation
-                    </span>
-                  )}
-                </div>
-
-                <div className="mt-auto pt-4 flex items-center justify-between">
-                  <div className="flex items-center text-gray-700">
-                    <svg className="w-5 h-5 mr-1.5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
-                    <span className="font-medium">{property.area} {property.area_unit}</span>
-                  </div>
-                  <p className="text-xl font-extrabold text-primary">{formatPrice(property.price)}</p>
-                </div>
-              </div>
-            </div>
-          )) : (
-            <div className="col-span-full text-center py-10">
-              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-              <p className="mt-4 text-gray-500 text-lg">No properties found matching your criteria.</p>
-              {hasActiveFilters && (
-                <button onClick={clearFilters} className="mt-2 text-primary hover:underline text-sm font-medium">Clear all filters</button>
+        <div className="fade-in" style={{
+          background: '#ffffff',
+          borderBottom: '1px solid #e5e7eb',
+          padding: '1.75rem 2rem',
+        }}>
+          <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <span className="text-caption" style={{ fontWeight: 600, color: '#898989', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                Filter Specifications
+              </span>
+              {hasActive && (
+                <button onClick={clearFilters} style={{ fontSize: '0.875rem', color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500, fontFamily: 'inherit' }}>
+                  Reset all
+                </button>
               )}
             </div>
-          )}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1.25rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#242424', marginBottom: '0.5rem', letterSpacing: '-0.2px' }}>District</label>
+                <input type="text" value={filterDistrict} onChange={e => setFilterDistrict(e.target.value)} placeholder="Coimbatore" className="form-input" />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#242424', marginBottom: '0.5rem', letterSpacing: '-0.2px' }}>Min Price (₹)</label>
+                <input type="number" value={filterMinPrice} onChange={e => setFilterMinPrice(e.target.value)} placeholder="0" className="form-input" />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#242424', marginBottom: '0.5rem', letterSpacing: '-0.2px' }}>Max Price (₹)</label>
+                <input type="number" value={filterMaxPrice} onChange={e => setFilterMaxPrice(e.target.value)} placeholder="Any" className="form-input" />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#242424', marginBottom: '0.5rem', letterSpacing: '-0.2px' }}>Min Area</label>
+                <input type="number" value={filterMinArea} onChange={e => setFilterMinArea(e.target.value)} placeholder="0" className="form-input" />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#242424', marginBottom: '0.5rem', letterSpacing: '-0.2px' }}>Water Source</label>
+                <select value={filterWaterSource} onChange={e => setFilterWaterSource(e.target.value)} className="form-input">
+                  {['', 'Borewell', 'Open Well', 'Canal', 'River', 'Rainfed'].map(o => <option key={o} value={o}>{o || 'Any'}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#242424', marginBottom: '0.5rem', letterSpacing: '-0.2px' }}>Road Access</label>
+                <select value={filterRoadAccess} onChange={e => setFilterRoadAccess(e.target.value)} className="form-input">
+                  {['', 'National Highway', 'State Highway', 'District Road', 'Village Road'].map(o => <option key={o} value={o}>{o || 'Any'}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
         </div>
       )}
+
+      {/* ── LISTINGS GRID ── */}
+      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1.5rem' }}>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+          <span style={{ fontSize: '0.9375rem', color: '#6b7280', fontWeight: 500, letterSpacing: '-0.2px' }}>
+            {loading ? 'Loading...' : `${properties.length} listing${properties.length !== 1 ? 's' : ''}`}
+          </span>
+        </div>
+
+        {loading ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '1.5rem' }}>
+            {[1, 2, 3, 4, 5, 6].map(i => (
+              <div key={i} className="property-card" style={{ height: '360px' }}>
+                <div className="skeleton" style={{ height: '210px', borderRadius: '12px 12px 0 0' }} />
+                <div style={{ padding: '1.25rem', flex: 1 }}>
+                  <div className="skeleton" style={{ height: '20px', width: '55%', marginBottom: '0.6rem' }} />
+                  <div className="skeleton" style={{ height: '14px', width: '38%', marginBottom: '1.25rem' }} />
+                  <div className="skeleton" style={{ height: '36px', width: '100%', borderRadius: '99px' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : properties.length === 0 ? (
+          <div style={{
+            textAlign: 'center', padding: '6rem 2rem', background: '#ffffff',
+            borderRadius: '12px', display: 'flex', flexDirection: 'column',
+            alignItems: 'center', gap: '1rem',
+            boxShadow: 'rgba(36, 36, 36, 0.05) 0px 4px 8px 0px'
+          }}>
+            <div style={{
+              width: '72px', height: '72px', borderRadius: '12px',
+              background: '#f4f4f4', border: '1px solid #e5e7eb',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#898989" strokeWidth="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M9 3v18M15 3v18M3 9h18M3 15h18" />
+              </svg>
+            </div>
+            <div>
+              <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: '1.25rem', color: '#101010', letterSpacing: '0.01em' }}>No listings found</h3>
+              <p style={{ color: '#6b7280', fontSize: '0.9375rem', marginTop: '0.4rem', letterSpacing: '-0.2px' }}>Try adjusting your filters or search term.</p>
+            </div>
+            {hasActive && <button onClick={clearFilters} className="btn-primary" style={{ marginTop: '0.5rem' }}>Clear filters</button>}
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '1.5rem' }}>
+            {properties.map(p => (
+              <div key={p.id} className="property-card">
+                <Link to={`/property/${p.id}`} style={{ textDecoration: 'none', color: 'inherit', display: 'flex', flexDirection: 'column', height: '100%' }}>
+
+                  {/* Image */}
+                  <div className="card-img" style={{ position: 'relative', height: '210px', overflow: 'hidden', background: '#f4f4f4', flexShrink: 0 }}>
+                    <img
+                      src={PROPERTY_IMAGES[p.type] ?? PROPERTY_IMAGES.default}
+                      alt={p.type}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+
+                    {/* Gradient for text legibility */}
+                    <div style={{
+                      position: 'absolute', inset: 0,
+                      background: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, transparent 50%)'
+                    }} />
+
+                    {/* Price sticker */}
+                    <div style={{
+                      position: 'absolute', bottom: '0.85rem', left: '0.85rem',
+                      background: 'rgba(255,255,255,0.96)',
+                      borderRadius: '6px',
+                      padding: '0.35rem 0.8rem',
+                      border: '1px solid #e5e7eb'
+                    }}>
+                      <p style={{ fontSize: '1rem', fontWeight: 600, color: '#101010', lineHeight: 1, margin: 0, fontFamily: "'Poppins', sans-serif" }}>
+                        {formatPrice(p.price)}
+                      </p>
+                    </div>
+
+                    {/* Type badge */}
+                    <span className="badge-active" style={{ position: 'absolute', bottom: '0.85rem', right: '0.85rem', fontSize: '0.75rem' }}>
+                      {p.type}
+                    </span>
+
+                    {/* Wishlist */}
+                    {isLoggedIn && (
+                      <button
+                        onClick={e => toggleWishlist(e, p.id)}
+                        disabled={togglingId === p.id}
+                        style={{
+                          position: 'absolute', top: '0.85rem', right: '0.85rem', zIndex: 10,
+                          width: '34px', height: '34px', borderRadius: '50%',
+                          background: 'rgba(255,255,255,0.95)', border: '1px solid #e5e7eb',
+                          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          transition: 'transform 0.15s ease',
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
+                        onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24"
+                          fill={wishlist.includes(p.id) ? '#101010' : 'none'}
+                          stroke={wishlist.includes(p.id) ? '#101010' : '#6b7280'}
+                          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Body */}
+                  <div style={{ padding: '1.25rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                    <div>
+                      <h4 style={{ fontSize: '1.0625rem', fontWeight: 600, color: '#101010', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: "'Poppins', sans-serif", letterSpacing: '0.01em' }}>
+                        {p.city}{p.district ? `, ${p.district}` : ''}
+                      </h4>
+                      <p style={{ fontSize: '0.875rem', color: '#6b7280', fontWeight: 400, letterSpacing: '-0.2px', marginTop: '0.2rem' }}>
+                        {p.area} {p.area_unit} · Deed Verified
+                      </p>
+                    </div>
+
+                    <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '0.75rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <span className="badge-verified" style={{ fontSize: '0.75rem' }}>Active</span>
+                      {p.water_source && (
+                        <span style={{ fontSize: '0.8125rem', color: '#898989', fontWeight: 400 }}>
+                          {p.water_source}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Action bar */}
+                  <div className="card-action-bar">
+                    <span className="btn-secondary" style={{ width: '100%', fontSize: '0.875rem', padding: '0.55rem 1rem', display: 'flex', justifyContent: 'center' }}>
+                      View details &rarr;
+                    </span>
+                  </div>
+
+                </Link>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

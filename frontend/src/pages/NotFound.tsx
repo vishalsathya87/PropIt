@@ -2,13 +2,23 @@ import { Link } from 'react-router-dom';
 
 export default function NotFound() {
   return (
-    <div className="min-h-[70vh] flex flex-col items-center justify-center text-center px-4">
-      <h1 className="text-8xl font-black text-gray-200">404</h1>
-      <h2 className="text-2xl font-bold text-gray-900 mt-4">Page Not Found</h2>
-      <p className="text-gray-500 mt-2 max-w-md">The page you are looking for doesn't exist or has been moved.</p>
-      <Link to="/" className="mt-8 bg-primary text-white px-6 py-3 rounded-md font-medium hover:bg-emerald-600 transition-colors">
-        Back to Home
-      </Link>
+    <div className="fade-in" style={{ minHeight: '80vh', backgroundColor: '#f4f4f4', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', paddingLeft: '1rem', paddingRight: '1rem' }}>
+      <div style={{ maxWidth: '400px', margin: '0 auto' }}>
+        <h1 style={{ fontFamily: "'Poppins', sans-serif", fontSize: '6rem', fontWeight: 600, color: '#e5e7eb', margin: 0, letterSpacing: '0.01em', lineHeight: 1 }}>
+          404
+        </h1>
+        <h2 style={{ fontFamily: "'Poppins', sans-serif", fontSize: '1.5rem', fontWeight: 600, color: '#101010', marginTop: '1rem', letterSpacing: '0.01em' }}>
+          Page Not Found
+        </h2>
+        <p style={{ color: '#6b7280', fontSize: '0.875rem', marginTop: '0.5rem', lineHeight: 1.5, letterSpacing: '-0.2px' }}>
+          The page you are looking for doesn't exist or has been moved.
+        </p>
+        <div style={{ marginTop: '2rem' }}>
+          <Link to="/" className="btn-primary" style={{ textDecoration: 'none', display: 'inline-flex' }}>
+            Back to Home
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }

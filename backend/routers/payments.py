@@ -18,7 +18,7 @@ class UnlockRequest(BaseModel):
 
 
 def _require_buyer(current_user: dict):
-    if current_user["role"] != "BUYER":
+    if current_user["role"] not in ("BUYER", "USER", "ADMIN"):
         raise HTTPException(status_code=403, detail="Only buyers can access this endpoint")
 
 
@@ -106,7 +106,18 @@ async def get_document(
     user_id = str(current_user["_id"])
 
     # Access control
-    if role == "BUYER":
+    if role == "ADMIN":
+        pass
+    elif role == "USER":
+        is_seller = (prop["seller_id"] == user_id)
+        if not is_seller:
+            tx = await _get_transaction(db, user_id, property_id)
+            if not tx:
+                raise HTTPException(
+                    status_code=403,
+                    detail="You must unlock this property before viewing its documents.",
+                )
+    elif role == "BUYER":
         tx = await _get_transaction(db, user_id, property_id)
         if not tx:
             raise HTTPException(
@@ -116,7 +127,7 @@ async def get_document(
     elif role == "SELLER":
         if prop["seller_id"] != user_id:
             raise HTTPException(status_code=403, detail="Not your property")
-    elif role != "ADMIN":
+    else:
         raise HTTPException(status_code=403, detail="Access denied")
 
     documents = prop.get("documents", [])

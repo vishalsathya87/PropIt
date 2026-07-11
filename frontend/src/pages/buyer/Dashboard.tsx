@@ -1,11 +1,26 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { api } from '../../lib/api';
 import type { Property } from '../../lib/types';
 import { formatPrice } from '../../lib/utils';
 import { PROPERTY_IMAGES } from '../../lib/types';
 
-export default function BuyerDashboard() {
+interface SellerProperty {
+  id: string;
+  city: string;
+  district?: string;
+  status: string;
+  view_count: number;
+}
+
+interface SellerStats {
+  unlock_counts: Record<string, number>;
+  total_unlocks: number;
+  total_revenue: number;
+}
+
+// ── Buy Panel ──────────────────────────────────────────────────────────────────
+function BuyPanel() {
   const [unlockedProps, setUnlockedProps] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -18,68 +33,85 @@ export default function BuyerDashboard() {
   }, []);
 
   if (loading) return (
-    <div className="flex justify-center py-20">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+    <div style={{ display: 'flex', justifyContent: 'center', paddingTop: '4rem' }}>
+      <p style={{ color: 'rgba(15,23,42,0.6)', fontSize: '0.9rem', fontWeight: 600 }}>Loading unlock list...</p>
     </div>
   );
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">My Unlocked Properties</h1>
-
-      {error && <div className="text-red-500 bg-red-50 p-4 rounded-lg mb-6">{error}</div>}
+    <div className="fade-in">
+      {error && <div className="error-box" style={{ marginBottom: '1.5rem' }}>{error}</div>}
 
       {!error && unlockedProps.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-xl border border-gray-100">
-          <svg className="mx-auto h-12 w-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
-          </svg>
-          <p className="mt-4 text-gray-500 font-medium">No unlocked properties yet.</p>
-          <Link to="/" className="mt-4 inline-block text-primary hover:underline text-sm">Browse properties</Link>
+        <div style={{
+          textAlign: 'center', padding: '4rem 1.5rem', background: '#ffffff',
+          borderRadius: '12px', border: '1px solid rgba(15, 23, 42, 0.06)', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.015)'
+        }}>
+          <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🗺️</div>
+          <h3 style={{ fontWeight: 800, color: '#0f172a', fontSize: '1.15rem' }}>No Unlocked Properties</h3>
+          <p style={{ color: 'rgba(15,23,42,0.5)', fontSize: '0.88rem', margin: '0.5rem 0 1.5rem' }}>
+            Lands you verify and pay for contact information will appear in this registry panel.
+          </p>
+          <Link to="/" className="btn-primary" style={{ textDecoration: 'none' }}>
+            Browse Properties
+          </Link>
         </div>
       ) : (
-        <div className="grid gap-6">
+        <div style={{ display: 'grid', gap: '1rem' }}>
           {unlockedProps.map((prop) => (
-            <div key={prop.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col md:flex-row hover:shadow-md transition-shadow">
-              <div className="md:w-64 flex-shrink-0">
-                <div
-                  className="h-full w-full bg-cover bg-center min-h-[200px]"
-                  style={{ backgroundImage: `url(${PROPERTY_IMAGES[prop.type] ?? PROPERTY_IMAGES.default})` }}
-                />
-              </div>
-              <div className="p-6 flex-grow">
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-semibold">{prop.type}</span>
-                    <h3 className="text-xl font-bold text-gray-900 mt-1">{prop.city}{prop.district ? `, ${prop.district}` : ''}</h3>
-                    <p className="text-sm text-gray-500">{prop.area} {prop.area_unit} &bull; {formatPrice(prop.price)}</p>
+            <div key={prop.id} className="property-card" style={{ display: 'flex', flexDirection: 'row', minHeight: '180px' }}>
+              <div style={{
+                width: '220px', flexShrink: 0,
+                backgroundImage: `url(${PROPERTY_IMAGES[prop.type] ?? PROPERTY_IMAGES.default})`,
+                backgroundSize: 'cover', backgroundPosition: 'center',
+                borderRight: '1px solid rgba(15,23,42,0.06)'
+              }} />
+              <div style={{ padding: '1.5rem', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <span className="badge-verified" style={{ fontSize: '0.65rem' }}>
+                        {prop.type}
+                      </span>
+                      <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', margin: '0.5rem 0 0.25rem' }}>
+                        {prop.city}{prop.district ? `, ${prop.district}` : ''}
+                      </h3>
+                      <p style={{ fontSize: '0.85rem', color: 'rgba(15,23,42,0.5)', fontWeight: 600 }}>
+                        {prop.area} {prop.area_unit} · <span style={{ color: '#b8963e', fontWeight: 800 }}>{formatPrice(prop.price)}</span>
+                      </p>
+                    </div>
+                    <Link to={`/property/${prop.id}`} className="btn-secondary" style={{
+                      padding: '0.5rem 1rem', fontSize: '0.75rem', textDecoration: 'none'
+                    }}>
+                      View Listing
+                    </Link>
                   </div>
-                  <Link to={`/property/${prop.id}`} className="text-sm text-primary hover:underline font-medium">View Details</Link>
                 </div>
 
-                <div className="mt-4 border-t border-gray-100 pt-4">
-                  <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    Unlocked Documents
+                <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(15,23,42,0.06)' }}>
+                  <h4 style={{ fontSize: '0.7rem', fontWeight: 800, color: 'rgba(15,23,42,0.45)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.5rem' }}>
+                    UNLOCKED DEED ATTACHMENTS
                   </h4>
-                  <div className="flex flex-wrap gap-3">
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                     {prop.documents && prop.documents.length > 0 ? (
                       prop.documents.map((doc, idx) => (
-                        <Link
-                          key={idx}
-                          to={`/viewer/${prop.id}/${idx}`}
-                          className="flex items-center px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-emerald-50 hover:border-primary hover:text-primary transition-colors"
+                        <Link key={idx} to={`/viewer/${prop.id}/${idx}`} style={{
+                          display: 'flex', alignItems: 'center', gap: '0.4rem',
+                          padding: '0.45rem 0.85rem', border: '1px solid rgba(15,23,42,0.1)', borderRadius: '6px',
+                          fontSize: '0.78rem', fontWeight: 700, color: '#0f172a', textDecoration: 'none',
+                          background: 'rgba(15,23,42,0.02)', transition: 'all 0.15s'
+                        }}
+                          onMouseEnter={e => { e.currentTarget.style.borderColor = '#0f2042'; e.currentTarget.style.background = 'rgba(15, 32, 66, 0.05)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(15,23,42,0.1)'; e.currentTarget.style.background = 'rgba(15,23,42,0.02)'; }}
                         >
-                          <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                           </svg>
                           {doc.type}
                         </Link>
                       ))
                     ) : (
-                      <p className="text-sm text-gray-400 italic">No documents uploaded by seller yet.</p>
+                      <p style={{ fontSize: '0.78rem', color: 'rgba(15,23,42,0.4)', fontStyle: 'italic' }}>No documents uploaded by seller yet.</p>
                     )}
                   </div>
                 </div>
@@ -88,6 +120,154 @@ export default function BuyerDashboard() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Sell Panel ─────────────────────────────────────────────────────────────────
+function SellPanel() {
+  const [properties, setProperties] = useState<SellerProperty[]>([]);
+  const [stats, setStats] = useState<SellerStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAll = async () => {
+      try {
+        const [propsRes, statsRes] = await Promise.all([
+          api.get<SellerProperty[]>('/properties/seller/me'),
+          api.get<SellerStats>('/properties/seller/me/stats'),
+        ]);
+        setProperties(propsRes.data);
+        setStats(statsRes.data);
+      } catch (error) {
+        console.error('Failed to fetch seller data', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAll();
+  }, []);
+
+  const totalViews = properties.reduce((sum, p) => sum + p.view_count, 0);
+  const totalUnlocks = stats?.total_unlocks ?? 0;
+  const totalRevenue = stats?.total_revenue ?? 0;
+
+  return (
+    <div className="fade-in">
+      {/* CTA Button */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
+        <Link to="/dashboard/seller/upload" className="btn-olx-sell">
+          + Add New Listing
+        </Link>
+      </div>
+
+      {/* Stats Row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
+        {[
+          { label: 'Active Listings', value: properties.length, color: '#0f172a' },
+          { label: 'Views Generated', value: totalViews, color: '#0f2042' },
+          { label: 'Unlocks / Payouts', value: `${totalUnlocks} / ₹${totalRevenue.toLocaleString('en-IN')}`, color: '#b8963e' },
+        ].map((stat) => (
+          <div key={stat.label} style={{
+            background: '#ffffff', borderRadius: '12px', padding: '1.25rem 1.5rem',
+            border: '1px solid rgba(15, 23, 42, 0.06)', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.015)'
+          }}>
+            <p style={{ fontSize: '0.72rem', fontWeight: 800, color: 'rgba(15,23,42,0.45)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.4rem' }}>{stat.label}</p>
+            <p style={{ fontSize: '1.4rem', fontWeight: 800, color: stat.color, lineHeight: 1.1 }}>{stat.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Listings Table */}
+      <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid rgba(15, 23, 42, 0.06)', overflow: 'hidden', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.015)' }}>
+        <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid rgba(15, 23, 42, 0.06)' }}>
+          <h3 style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.92rem' }}>Property Listings</h3>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: 'rgba(15, 23, 42, 0.02)' }}>
+                {['Listing Detail', 'Status', 'Views / Unlocks', 'Manage'].map((h, i) => (
+                  <th key={h} style={{
+                    padding: '0.85rem 1.5rem', textAlign: i === 2 ? 'center' : i === 3 ? 'right' : 'left',
+                    fontSize: '0.72rem', fontWeight: 800, color: 'rgba(15,23,42,0.45)', textTransform: 'uppercase', letterSpacing: '0.04em'
+                  }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: 'rgba(15,23,42,0.45)', fontSize: '0.85rem' }}>Acquiring list...</td></tr>
+              ) : properties.length === 0 ? (
+                <tr>
+                  <td colSpan={4} style={{ padding: '4rem 1.5rem', textAlign: 'center' }}>
+                    <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🍂</div>
+                    <p style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.95rem' }}>No Listings Added</p>
+                    <p style={{ color: 'rgba(15,23,42,0.5)', fontSize: '0.85rem', marginBottom: '1rem' }}>Create property listings to start selling land.</p>
+                    <Link to="/dashboard/seller/upload" className="btn-primary" style={{ textDecoration: 'none', fontSize: '0.75rem' }}>
+                      Add First Property
+                    </Link>
+                  </td>
+                </tr>
+              ) : properties.map((listing) => (
+                <tr key={listing.id} style={{ borderTop: '1px solid rgba(15, 23, 42, 0.06)', transition: 'background 0.15s' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(15,23,42,0.015)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <td style={{ padding: '1rem 1.5rem' }}>
+                    <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.88rem' }}>
+                      {listing.city}{listing.district ? `, ${listing.district}` : ''}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: 'rgba(15, 23, 42, 0.45)', fontFamily: 'monospace', marginTop: '0.2rem' }}>
+                      Ref ID: {listing.id.slice(-8).toUpperCase()}
+                    </div>
+                  </td>
+                  <td style={{ padding: '1rem 1.5rem' }}>
+                    <span className="badge-verified" style={{ padding: '0.2rem 0.5rem', fontSize: '0.68rem', fontWeight: 700 }}>
+                      {listing.status}
+                    </span>
+                  </td>
+                  <td style={{ padding: '1rem 1.5rem', textAlign: 'center', fontSize: '0.85rem', fontWeight: 700 }}>
+                    <span style={{ color: '#0f172a' }}>{listing.view_count}</span>
+                    <span style={{ color: 'rgba(15, 23, 42, 0.2)', margin: '0 0.4rem' }}>/</span>
+                    <span style={{ color: '#b8963e' }}>{stats?.unlock_counts?.[listing.id] ?? 0}</span>
+                  </td>
+                  <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
+                    <Link to={`/dashboard/seller/edit/${listing.id}`} className="btn-secondary" style={{
+                      padding: '0.45rem 1rem', fontSize: '0.75rem', textDecoration: 'none'
+                    }}>Edit</Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Buy Dashboard ──────────────────────────────────────────────────────────────
+export default function UnifiedDashboard() {
+  const location = useLocation();
+  const isSeller = location.pathname.includes('seller');
+
+  return (
+    <div style={{ background: '#faf9f6', minHeight: '100vh', padding: '3rem 1.5rem' }}>
+      <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
+        <div style={{ marginBottom: '2rem', borderBottom: '1px solid rgba(15,23,42,0.06)', paddingBottom: '1rem' }}>
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
+            {isSeller ? 'My Listings Panel' : 'My Property Registry'}
+          </h1>
+          <p style={{ color: 'rgba(15,23,42,0.55)', fontSize: '0.85rem', marginTop: '0.25rem', fontWeight: 600 }}>
+            {isSeller ? 'Monitor active listings, views, and buyer payouts' : 'Manage purchased land survey deeds and certificates'}
+          </p>
+        </div>
+
+        <div style={{ animation: 'fadeIn 0.2s ease-out' }}>
+          {isSeller ? <SellPanel /> : <BuyPanel />}
+        </div>
+      </div>
     </div>
   );
 }

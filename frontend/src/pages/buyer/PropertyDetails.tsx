@@ -1,177 +1,221 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { api } from '../../lib/api';
+import type { Property } from '../../lib/types';
 import { formatPrice } from '../../lib/utils';
+
+interface DetailedProperty extends Property {
+  unlocked?: boolean;
+  owner_name?: string;
+  owner_phone?: string;
+}
 
 export default function PropertyDetails() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  const [prop, setProp] = useState<any>(null);
+  const [prop, setProp] = useState<DetailedProperty | null>(null);
   const [loading, setLoading] = useState(true);
   const [unlocking, setUnlocking] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const fetchProperty = async () => {
-      try {
-        const response = await api.get(`/properties/${id}`);
-        setProp(response.data);
-      } catch (err) {
-        console.error("Failed to fetch property details", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchProperty();
+    api.get<DetailedProperty>(`/properties/${id}`)
+      .then((res) => setProp(res.data))
+      .catch((err) => {
+        console.error(err);
+        setError('Listing could not be retrieved.');
+      })
+      .finally(() => setLoading(false));
   }, [id]);
 
   const handleMockUnlock = async () => {
     setUnlocking(true);
     setError('');
     try {
-      await api.post('/payments/mock-unlock', { property_id: id });
-      navigate('/dashboard/buyer');
-    } catch (err: any) {
-      if (err.response?.status === 401) {
-        navigate('/login');
-      } else {
-        setError(err.response?.data?.detail || 'Payment simulation failed');
-      }
+      const res = await api.post(`/properties/${id}/unlock`);
+      setProp(prev => prev ? { ...prev, unlocked: true, owner_name: res.data.owner_name, owner_phone: res.data.owner_phone } : null);
+    } catch {
+      setError('Transaction validation failed. Please try again.');
     } finally {
       setUnlocking(false);
     }
   };
 
-  // formatPrice imported from utils
+  if (loading) return (
+    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '3.5rem 1.5rem', minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <p style={{ color: '#6b7280', fontSize: '0.875rem', fontWeight: 400, letterSpacing: '-0.2px' }}>Loading registry records...</p>
+    </div>
+  );
 
-
-  if (loading) return <div className="text-center py-20"><div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>;
-  if (!prop) return <div className="text-center py-20 text-red-500">Property not found.</div>;
+  if (!prop) return (
+    <div style={{ textAlign: 'center', padding: '5rem 1.5rem', color: '#dc2626', fontWeight: 600 }}>
+      Listing not found.
+    </div>
+  );
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <Link to="/" className="text-primary hover:underline mb-6 inline-block">&larr; Back to Listings</Link>
-      <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
-        {/* Hero Banner */}
-        <div className="h-64 sm:h-80 bg-gray-200 relative">
-          <div className="absolute inset-0 bg-cover bg-center filter blur-md" style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1524813686514-a57563d77965?auto=format&fit=crop&q=80)' }}></div>
-          <div className="absolute inset-0 bg-black bg-opacity-40 flex flex-col items-center justify-center text-center p-6">
-            <svg className="w-16 h-16 text-white mb-4 opacity-75" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-            <h2 className="text-2xl font-bold text-white tracking-wide">Precise Location & Documents Hidden</h2>
-            <p className="text-gray-200 mt-2">Unlock to view exact coordinates, FMB sketch, and Patta.</p>
-          </div>
-        </div>
+    <div className="fade-in" style={{ backgroundColor: '#f4f4f4', minHeight: '100vh', padding: '2rem 1.5rem' }}>
+      <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
         
-        <div className="p-8">
-          {/* Title + Price */}
-          <div className="flex flex-col md:flex-row justify-between items-start mb-6 border-b border-gray-100 pb-6">
-            <div>
-              <span className="inline-block bg-emerald-100 text-emerald-800 text-xs px-3 py-1 rounded-full font-semibold uppercase tracking-wider mb-2">{prop.type}</span>
-              <h1 className="text-3xl font-bold text-gray-900">{prop.city}{prop.district ? `, ${prop.district}` : ''}</h1>
-              <p className="mt-1 text-gray-500">{prop.state}</p>
-              <div className="mt-2 text-gray-600 flex items-center text-lg">
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
-                {prop.area} {prop.area_unit}
-              </div>
-            </div>
-            <div className="mt-4 md:mt-0 text-left md:text-right">
-              <span className="block text-sm text-gray-500 uppercase tracking-wider font-semibold">Asking Price</span>
-              <span className="block text-4xl font-extrabold text-primary">{formatPrice(prop.price)}</span>
-              <span className="text-xs text-gray-400 mt-1 block">{prop.view_count} views</span>
-            </div>
-          </div>
+        <Link to="/" style={{
+          color: '#101010', textDecoration: 'none', fontWeight: 500, fontSize: '0.875rem',
+          display: 'inline-flex', alignItems: 'center', gap: '0.3rem', marginBottom: '1.5rem',
+          letterSpacing: '-0.2px'
+        }}>
+          &larr; Back to listings
+        </Link>
+
+        {/* Two-Column Classified Layout */}
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem', alignItems: 'start' }}>
           
-          {/* Description */}
-          <div className="mb-8">
-            <h3 className="text-xl font-bold text-gray-900 mb-3">Overview</h3>
-            <p className="text-gray-700 leading-relaxed">{prop.description || "No description provided by the seller."}</p>
-          </div>
-
-          {/* Land Features Grid */}
-          <div className="mb-8">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Land Features</h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {prop.soil_type && (
-                <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                  <p className="text-xs text-gray-500 uppercase font-semibold">Soil Type</p>
-                  <p className="text-sm font-medium text-gray-900 mt-1">{prop.soil_type}</p>
-                </div>
-              )}
-              {prop.water_source && (
-                <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
-                  <p className="text-xs text-blue-500 uppercase font-semibold">Water Source</p>
-                  <p className="text-sm font-medium text-blue-900 mt-1 flex items-center gap-1">
-                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M7.293 1.293a1 1 0 011.414 0l7 7A1 1 0 0116 10v7a1 1 0 01-1 1H9a1 1 0 01-1-1v-3H5a1 1 0 01-1-1V10a1 1 0 01.293-.707l3-3zM6 10.414V15h2v-4.586L6 10.414zm4 0V15h4v-4.586l-4-4V10.414z" clipRule="evenodd" /></svg>
-                    {prop.water_source}
-                  </p>
-                </div>
-              )}
-              {prop.road_access && (
-                <div className="bg-yellow-50 rounded-lg p-3 border border-yellow-100">
-                  <p className="text-xs text-yellow-600 uppercase font-semibold">Road Access</p>
-                  <p className="text-sm font-medium text-yellow-900 mt-1 flex items-center gap-1">
-                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h2V2h4v2h2a2 2 0 012 2v8a2 2 0 01-2 2h-2v2H8v-2zm0-10v8h4V6H8z"/></svg>
-                    {prop.road_access}
-                  </p>
-                </div>
-              )}
-              {prop.fencing && (
-                <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                  <p className="text-xs text-gray-500 uppercase font-semibold">Fencing</p>
-                  <p className="text-sm font-medium text-gray-900 mt-1">{prop.fencing}</p>
-                </div>
-              )}
-              <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                <p className="text-xs text-gray-500 uppercase font-semibold">Electricity</p>
-                <p className={`text-sm font-medium mt-1 flex items-center gap-1 ${prop.electricity ? 'text-amber-700' : 'text-gray-400'}`}>
-                  {prop.electricity ? (
-                    <><svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd"/></svg>Available</>
-                  ) : 'Not Available'}
+          {/* Main Content Column */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            
+            {/* Image Banner */}
+            <div style={{
+              background: '#ffffff', borderRadius: '12px', overflow: 'hidden',
+              position: 'relative', height: '400px',
+              boxShadow: 'rgba(36, 36, 36, 0.05) 0px 4px 8px 0px'
+            }}>
+              <div style={{
+                position: 'absolute', inset: 0,
+                backgroundImage: 'url(https://images.unsplash.com/photo-1524813686514-a57563d77965?auto=format&fit=crop&q=80)',
+                backgroundSize: 'cover', backgroundPosition: 'center',
+                filter: 'brightness(0.85)'
+              }} />
+              <div style={{
+                position: 'absolute', inset: 0,
+                display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+                padding: '2rem', background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 60%)',
+                color: '#ffffff'
+              }}>
+                <span className="badge-active" style={{ alignSelf: 'flex-start', marginBottom: '0.75rem' }}>
+                  {prop.type}
+                </span>
+                <h1 style={{ fontFamily: "'Poppins', sans-serif", fontSize: '2rem', fontWeight: 600, margin: 0, letterSpacing: '0.01em' }}>
+                  {prop.city}
+                </h1>
+                <p style={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.875rem', marginTop: '0.25rem', fontWeight: 400, letterSpacing: '-0.2px' }}>
+                  {prop.district ? `${prop.district}, ` : ''}{prop.state}
                 </p>
               </div>
-              <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                <p className="text-xs text-gray-500 uppercase font-semibold">Irrigation</p>
-                <p className={`text-sm font-medium mt-1 flex items-center gap-1 ${prop.irrigation ? 'text-green-700' : 'text-gray-400'}`}>
-                  {prop.irrigation ? (
-                    <><svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M5.5 16a3.5 3.5 0 01-.369-6.98 4 4 0 117.753-1.977A4.5 4.5 0 1113.5 16h-8z"/></svg>Available</>
-                  ) : 'Not Available'}
-                </p>
-              </div>
-              {prop.nearby_town && (
-                <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                  <p className="text-xs text-gray-500 uppercase font-semibold">Nearest Town</p>
-                  <p className="text-sm font-medium text-gray-900 mt-1">{prop.nearby_town}{prop.distance_from_town_km ? ` (${prop.distance_from_town_km} km)` : ''}</p>
-                </div>
-              )}
             </div>
-          </div>
 
-          {/* Keywords */}
-          {prop.keywords && prop.keywords.length > 0 && (
-            <div className="mb-8">
-              <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Tags</h3>
-              <div className="flex flex-wrap gap-2">
-                {prop.keywords.map((kw: string, i: number) => (
-                  <span key={i} className="inline-block bg-gray-100 text-gray-700 text-xs px-3 py-1 rounded-full">{kw}</span>
+            {/* Land Specs & Overview */}
+            <div style={{ background: '#ffffff', borderRadius: '12px', padding: '2rem', boxShadow: 'rgba(36, 36, 36, 0.05) 0px 4px 8px 0px' }}>
+              <h2 style={{ fontFamily: "'Poppins', sans-serif", fontSize: '1.25rem', fontWeight: 600, color: '#101010', borderBottom: '1px solid #e5e7eb', paddingBottom: '0.75rem', marginBottom: '1.25rem', letterSpacing: '0.01em' }}>
+                Property Specifications
+              </h2>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.25rem', marginBottom: '2rem' }}>
+                <div>
+                  <p style={{ fontSize: '0.75rem', fontWeight: 500, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Land Area</p>
+                  <p style={{ fontSize: '1.125rem', fontWeight: 600, color: '#242424', marginTop: '0.2rem', letterSpacing: '-0.2px' }}>{prop.area} {prop.area_unit}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: '0.75rem', fontWeight: 500, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Asking Price</p>
+                  <p style={{ fontSize: '1.125rem', fontWeight: 600, color: '#101010', marginTop: '0.2rem', letterSpacing: '-0.2px' }}>{formatPrice(prop.price)}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: '0.75rem', fontWeight: 500, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Verification</p>
+                  <p style={{ fontSize: '1.125rem', fontWeight: 600, color: '#101010', marginTop: '0.2rem', letterSpacing: '-0.2px' }}>Deed Verified</p>
+                </div>
+              </div>
+
+              <h3 style={{ fontFamily: "'Poppins', sans-serif", fontSize: '1rem', fontWeight: 600, color: '#101010', marginBottom: '0.5rem', letterSpacing: '0.01em' }}>Overview</h3>
+              <p style={{ color: '#6b7280', fontSize: '0.875rem', lineHeight: 1.5, letterSpacing: '-0.19px' }}>
+                {prop.description || "No description provided by the seller."}
+              </p>
+            </div>
+
+            {/* Feature Attributes List */}
+            <div style={{ background: '#ffffff', borderRadius: '12px', padding: '2rem', boxShadow: 'rgba(36, 36, 36, 0.05) 0px 4px 8px 0px' }}>
+              <h2 style={{ fontFamily: "'Poppins', sans-serif", fontSize: '1.25rem', fontWeight: 600, color: '#101010', borderBottom: '1px solid #e5e7eb', paddingBottom: '0.75rem', marginBottom: '1.25rem', letterSpacing: '0.01em' }}>
+                Attributes & Highlights
+              </h2>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                {[
+                  { label: 'Soil Type', val: prop.soil_type || 'Unspecified' },
+                  { label: 'Water Source', val: prop.water_source ? prop.water_source : 'None' },
+                  { label: 'Road Access', val: prop.road_access ? prop.road_access : 'Unspecified' },
+                  { label: 'Electricity Grid', val: prop.electricity ? 'Connected' : 'Not Connected' },
+                  { label: 'Irrigation Setup', val: prop.irrigation ? 'Configured' : 'Not Configured' },
+                  { label: 'Nearest Town', val: prop.nearby_town ? `${prop.nearby_town} (${prop.distance_from_town_km || 0} km)` : 'Unspecified' },
+                ].map(attr => (
+                  <div key={attr.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem 0', borderBottom: '1px solid #e5e7eb' }}>
+                    <span style={{ fontSize: '0.875rem', color: '#6b7280', fontWeight: 400, letterSpacing: '-0.2px' }}>{attr.label}</span>
+                    <span style={{ fontSize: '0.875rem', color: '#242424', fontWeight: 500, letterSpacing: '-0.2px' }}>{attr.val}</span>
+                  </div>
                 ))}
               </div>
             </div>
-          )}
 
-          {/* Unlock CTA */}
-          <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 text-center">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Interested in this property?</h3>
-            <p className="text-gray-600 mb-6">Pay a refundable verification fee of ₹500 via UPI to unlock all seller details and securely view the property documents.</p>
-            
-            {error && <div className="text-red-500 mb-4 text-sm font-medium">{error}</div>}
-            
-            <button onClick={handleMockUnlock} disabled={unlocking} className="bg-primary hover:bg-emerald-600 text-white font-bold py-3 px-8 rounded-md shadow-lg transition-transform transform hover:scale-105 flex items-center justify-center mx-auto disabled:opacity-50">
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
-              {unlocking ? 'Simulating UPI Payment...' : 'Pay ₹500 & Unlock Securely (Demo)'}
-            </button>
-            <p className="text-xs text-gray-500 mt-4">Payments are processed securely via UPI intent. Documents are view-only to prevent unauthorized distribution.</p>
           </div>
+
+          {/* Right Action Sidebar */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', position: 'sticky', top: '90px' }}>
+            
+            {/* Price Box */}
+            <div style={{ background: '#ffffff', borderRadius: '12px', padding: '1.5rem', boxShadow: 'rgba(36, 36, 36, 0.05) 0px 4px 8px 0px' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#898989', textTransform: 'uppercase', letterSpacing: '0.04em' }}>TOTAL COST</span>
+              <p style={{ fontSize: '1.75rem', fontWeight: 600, color: '#101010', marginTop: '0.2rem', fontFamily: "'Poppins', sans-serif" }}>
+                {formatPrice(prop.price)}
+              </p>
+              <div style={{ height: '1px', background: '#e5e7eb', margin: '1rem 0' }} />
+              <p style={{ fontSize: '0.8125rem', color: '#6b7280', fontWeight: 400, letterSpacing: '-0.2px', lineHeight: 1.4 }}>
+                Owner listings have 0% broker commission.
+              </p>
+            </div>
+
+            {/* Unlock Contact Verification Box */}
+            <div style={{ background: '#ffffff', borderRadius: '12px', padding: '1.75rem', color: '#242424', boxShadow: 'rgba(36, 36, 36, 0.05) 0px 4px 8px 0px', border: '1px solid #e5e7eb' }}>
+              
+              {prop.unlocked ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                  <span className="badge-verified" style={{ alignSelf: 'flex-start' }}>OWNER CONTACT</span>
+                  <div>
+                    <p style={{ fontSize: '0.75rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Landowner Name</p>
+                    <p style={{ fontSize: '1.0625rem', fontWeight: 600, color: '#101010', letterSpacing: '-0.2px' }}>{prop.owner_name || 'Landowner'}</p>
+                  </div>
+                  <div>
+                    <p style={{ fontSize: '0.75rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Contact Number</p>
+                    <p style={{ fontSize: '1.125rem', fontWeight: 600, color: '#101010', letterSpacing: '0.02em' }}>{prop.owner_phone || '+91 XXXXX XXXXX'}</p>
+                  </div>
+                  <div style={{ height: '1px', background: '#e5e7eb', margin: '0.5rem 0' }} />
+                  <p style={{ fontSize: '0.8125rem', color: '#6b7280', lineHeight: 1.4, letterSpacing: '-0.2px' }}>
+                    Deed survey sketches and FMB diagrams have been unlocked for download in your secure vault.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <h3 style={{ fontFamily: "'Poppins', sans-serif", fontSize: '1.125rem', fontWeight: 600, marginBottom: '0.5rem', color: '#101010', letterSpacing: '0.01em' }}>
+                    Unlock Owner Contact
+                  </h3>
+                  <p style={{ fontSize: '0.875rem', color: '#6b7280', lineHeight: 1.4, marginBottom: '1.5rem', letterSpacing: '-0.2px' }}>
+                    Pay a refundable UPI processing fee of ₹500 to view land survey deeds, boundary coordinates, and connect directly with the landowner.
+                  </p>
+
+                  {error && <div className="error-box" style={{ marginBottom: '1rem', fontSize: '0.8125rem' }}>{error}</div>}
+
+                  <button
+                    onClick={handleMockUnlock}
+                    disabled={unlocking}
+                    className="btn-primary"
+                    style={{ width: '100%', padding: '0.75rem', fontSize: '0.875rem', borderRadius: '9999px', fontWeight: 500 }}
+                  >
+                    {unlocking ? 'Acquiring payment token...' : 'Pay ₹500 & View Contact'}
+                  </button>
+
+                  <p style={{ fontSize: '0.75rem', color: '#898989', marginTop: '1rem', textAlign: 'center', letterSpacing: '-0.2px' }}>
+                    Refundable if survey deeds are unverified.
+                  </p>
+                </>
+              )}
+            </div>
+
+          </div>
+
         </div>
+
       </div>
     </div>
   );

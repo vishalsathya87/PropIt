@@ -14,8 +14,21 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
     return <Navigate to="/login" replace />;
   }
 
-  if (requiredRole && role !== requiredRole) {
-    return <Navigate to="/" replace />;
+  if (requiredRole) {
+    // ADMIN can access everything
+    if (role === 'ADMIN') {
+      return <>{children}</>;
+    }
+    
+    // A standard USER can access both BUYER and SELLER routes
+    if (role === 'USER' && (requiredRole === 'BUYER' || requiredRole === 'SELLER')) {
+      return <>{children}</>;
+    }
+
+    // Otherwise, check exact match
+    if (role !== requiredRole) {
+      return <Navigate to="/" replace />;
+    }
   }
 
   return <>{children}</>;

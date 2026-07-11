@@ -65,7 +65,7 @@ class UserCreate(BaseModel):
     uid: str
     email: str
     phone_number: str
-    role: str
+    role: str = "USER"
     full_name: Optional[str] = None
     kyc_details: Optional[KYCDetails] = None
 

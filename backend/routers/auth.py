@@ -86,3 +86,43 @@ async def read_users_me(current_user=Depends(get_current_user)):
         role=current_user["role"],
         full_name=current_user.get("full_name"),
     )
+
+
+# ── Wishlist endpoints ──────────────────────────────────────────────────────────
+
+@router.get("/wishlist")
+async def get_wishlist(current_user=Depends(get_current_user)):
+    """Return list of property IDs in the user's wishlist."""
+    return {"wishlist": current_user.get("wishlist", [])}
+
+
+@router.post("/wishlist/{property_id}")
+async def toggle_wishlist(property_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
+    """Toggle a property in/out of the user's wishlist. Returns updated wishlist."""
+    uid = str(current_user["_id"])
+    wishlist: list = current_user.get("wishlist", [])
+
+    if property_id in wishlist:
+        wishlist.remove(property_id)
+        action = "removed"
+    else:
+        wishlist.append(property_id)
+        action = "added"
+
+    await db.users.update_one({"_id": uid}, {"$set": {"wishlist": wishlist}})
+    return {"action": action, "wishlist": wishlist}
+
+
+@router.get("/wishlist/properties")
+async def get_wishlist_properties(current_user=Depends(get_current_user), db=Depends(get_db)):
+    """Return full property documents for items in the user's wishlist."""
+    from bson import ObjectId
+    wishlist: list = current_user.get("wishlist", [])
+    properties = []
+    for pid in wishlist:
+        if ObjectId.is_valid(pid):
+            prop = await db.properties.find_one({"_id": ObjectId(pid), "status": "ACTIVE"})
+            if prop:
+                prop["id"] = str(prop.pop("_id"))
+                properties.append(prop)
+    return properties
