@@ -137,12 +137,12 @@ export default function AdminDashboard() {
     <div style={{ background: '#faf9f6', minHeight: '100vh', padding: '1rem 1.5rem 3rem' }}>
       <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
         
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
           <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Admin Control Panel</h1>
           <span className="badge-premium" style={{ border: '1px solid #ff3b30', color: '#ff3b30', background: 'rgba(255,59,48,0.06)', borderRadius: '4px', fontSize: '0.65rem', fontWeight: 700, padding: '0.2rem 0.5rem', textTransform: 'uppercase' }}>Admin Control</span>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid rgba(15, 23, 42, 0.08)', paddingBottom: '0.5rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid rgba(15, 23, 42, 0.08)', paddingBottom: '0.5rem', overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', whiteSpace: 'nowrap' }}>
           {(Object.keys(TAB_LABELS) as Tab[]).map((tab) => (
             <button
               key={tab}
@@ -160,7 +160,8 @@ export default function AdminDashboard() {
                 transition: 'all 0.2s ease',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '0.4rem'
+                gap: '0.4rem',
+                flexShrink: 0
               }}
               onMouseEnter={e => {
                 if (activeTab !== tab) {
