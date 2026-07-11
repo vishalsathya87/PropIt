@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api } from '../../lib/api';
+import { Document, Page, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
+import 'react-pdf/dist/esm/Page/TextLayer.css';
+
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 type ViewerState = 'loading' | 'unauthorized' | 'ready' | 'error';
 
@@ -16,6 +21,7 @@ export default function SecureViewer() {
   const [docType, setDocType] = useState<string>('Document');
   const [isImage, setIsImage] = useState(false);
   const [isPdf, setIsPdf] = useState(false);
+  const [numPages, setNumPages] = useState<number | null>(null);
 
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => e.preventDefault();
@@ -284,18 +290,29 @@ export default function SecureViewer() {
 
             {isPdf && (
               <div 
-                className="bg-[#1e2230] rounded-xl shadow-2xl overflow-hidden" 
+                className="bg-[#1e2230] rounded-xl shadow-2xl overflow-y-auto flex flex-col items-center py-4" 
                 style={{ 
                   height: '80vh',
                   border: '1px solid rgba(255, 255, 255, 0.08)'
                 }}
               >
-                {/* Append #toolbar=0&navpanes=0 to hide print/download buttons in built-in PDF viewer */}
-                <iframe
-                  src={`${docUrl}#toolbar=0&navpanes=0&view=FitH`}
-                  title={docType}
-                  className="w-full h-full border-0"
-                />
+                <Document 
+                  file={docUrl} 
+                  onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+                  loading={<div className="text-gray-400 p-10 text-sm">Loading secure PDF engine...</div>}
+                  error={<div className="text-red-400 p-10 text-sm">Failed to render PDF document.</div>}
+                >
+                  {Array.from(new Array(numPages || 0), (_, index) => (
+                    <div key={`page_${index + 1}`} className="mb-6 shadow-2xl" style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                      <Page 
+                        pageNumber={index + 1} 
+                        renderTextLayer={false} 
+                        renderAnnotationLayer={false} 
+                        width={Math.min(window.innerWidth * 0.8, 850)}
+                      />
+                    </div>
+                  ))}
+                </Document>
               </div>
             )}
 
