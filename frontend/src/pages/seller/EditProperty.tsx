@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import FileDropzone from '../../components/common/FileDropzone';
+import DraggableGrid from '../../components/common/DraggableGrid';
 
 interface SavedDoc {
   type: string;
@@ -23,20 +24,12 @@ function GalleryItemThumbnail({
   item,
   index,
   isDragging,
-  onRemove,
-  onDragStart,
-  onDragOver,
-  onDragEnter,
-  onDragEnd
+  onRemove
 }: {
   item: GalleryItem;
   index: number;
   isDragging: boolean;
   onRemove: () => void;
-  onDragStart: (e: React.DragEvent) => void;
-  onDragOver: (e: React.DragEvent) => void;
-  onDragEnter: (e: React.DragEvent) => void;
-  onDragEnd: () => void;
 }) {
   const [src, setSrc] = useState('');
 
@@ -57,23 +50,18 @@ function GalleryItemThumbnail({
 
   return (
     <div
-      draggable
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDragEnter={onDragEnter}
-      onDragEnd={onDragEnd}
       style={{
         position: 'relative',
         height: '90px',
         borderRadius: '6px',
         border: isDragging ? '2px dashed #101010' : '1px solid #e5e7eb',
         overflow: 'hidden',
-        cursor: 'grabbing',
+        cursor: 'grab',
         background: isDragging ? 'rgba(16, 16, 16, 0.05)' : '#f4f4f4',
         boxShadow: isDragging ? 'none' : 'rgba(36, 36, 36, 0.04) 0px 2px 4px 0px',
         opacity: isDragging ? 0.35 : 1,
-        transform: isDragging ? 'scale(0.92)' : 'none',
-        transition: 'transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.25s ease, border-color 0.25s ease'
+        width: '100%',
+        transition: 'all 0.25s ease'
       }}
     >
       <img src={src} alt="thumbnail" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -127,7 +115,6 @@ export default function EditProperty() {
 
   // Unified Gallery Items (retained images + new images mixed)
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -153,7 +140,6 @@ export default function EditProperty() {
         setIrrigation(!!p.irrigation);
         setRetainedDocs(p.documents || []);
 
-        // Load existing images into unified gallery
         const existingImages: GalleryItem[] = (p.images || []).map((url: string, i: number) => ({
           id: `saved-${i}-${url}`,
           url
@@ -167,7 +153,6 @@ export default function EditProperty() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  // Documents handlers
   const handleDocsSelected = (files: File[]) => {
     const newItems = files.map(file => ({ type: 'Patta', file }));
     setNewDocs(prev => [...prev, ...newItems]);
@@ -178,7 +163,6 @@ export default function EditProperty() {
     updated[index].type = val;
     setNewDocs(updated);
   };
-
   // Image upload handler
   const handleImagesSelected = (files: File[]) => {
     const imageFiles = files.filter(f => f.type.startsWith('image/'));
@@ -187,48 +171,6 @@ export default function EditProperty() {
       file
     }));
     setGalleryItems(prev => [...prev, ...newItems]);
-  };
-
-  // Drag and drop sorting handlers
-  const handleDragStart = (e: React.DragEvent, index: number) => {
-    setDraggedIndex(index);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDragEnterItem = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (draggedIndex === null || draggedIndex === index) return;
-
-    const rect = e.currentTarget.getBoundingClientRect();
-    const targetCenter = rect.left + rect.width / 2;
-    const clientX = e.clientX;
-
-    const isMovingRight = draggedIndex < index;
-    const isMovingLeft = draggedIndex > index;
-
-    if (isMovingRight && clientX > targetCenter) {
-      const reordered = [...galleryItems];
-      const draggedItem = reordered[draggedIndex];
-      reordered.splice(draggedIndex, 1);
-      reordered.splice(index, 0, draggedItem);
-      setDraggedIndex(index);
-      setGalleryItems(reordered);
-    } else if (isMovingLeft && clientX < targetCenter) {
-      const reordered = [...galleryItems];
-      const draggedItem = reordered[draggedIndex];
-      reordered.splice(draggedIndex, 1);
-      reordered.splice(index, 0, draggedItem);
-      setDraggedIndex(index);
-      setGalleryItems(reordered);
-    }
-  };
-
-  const handleDragEnd = () => {
-    setDraggedIndex(null);
   };
 
   const handleRemoveGalleryItem = (index: number) => {
@@ -517,21 +459,19 @@ export default function EditProperty() {
                     <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.5rem', fontWeight: 500 }}>
                       💡 Tip: Drag images to set order. The first image will be the primary cover listing.
                     </p>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: '0.65rem' }}>
-                      {galleryItems.map((item, index) => (
+                    <DraggableGrid
+                      items={galleryItems}
+                      onChange={setGalleryItems}
+                      keyExtractor={(item) => item.id}
+                      renderItem={(item, index, isDragging) => (
                         <GalleryItemThumbnail
-                          key={item.id}
                           item={item}
                           index={index}
-                          isDragging={index === draggedIndex}
+                          isDragging={isDragging}
                           onRemove={() => handleRemoveGalleryItem(index)}
-                          onDragStart={(e) => handleDragStart(e, index)}
-                          onDragOver={handleDragOver}
-                          onDragEnter={(e) => handleDragEnterItem(e, index)}
-                          onDragEnd={handleDragEnd}
                         />
-                      ))}
-                    </div>
+                      )}
+                    />
                   </div>
                 )}
               </div>

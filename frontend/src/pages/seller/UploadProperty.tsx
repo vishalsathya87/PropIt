@@ -2,21 +2,18 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import FileDropzone from '../../components/common/FileDropzone';
+import DraggableGrid from '../../components/common/DraggableGrid';
 
 interface DocUploadItem {
   type: string;
   file: File;
 }
 
-function ImageThumbnail({ file, index, isDragging, onRemove, onDragStart, onDragOver, onDragEnter, onDragEnd }: {
+function ImageThumbnail({ file, index, isDragging, onRemove }: {
   file: File;
   index: number;
   isDragging: boolean;
   onRemove: () => void;
-  onDragStart: (e: React.DragEvent) => void;
-  onDragOver: (e: React.DragEvent) => void;
-  onDragEnter: (e: React.DragEvent) => void;
-  onDragEnd: () => void;
 }) {
   const [url, setUrl] = useState('');
   useEffect(() => {
@@ -29,23 +26,18 @@ function ImageThumbnail({ file, index, isDragging, onRemove, onDragStart, onDrag
 
   return (
     <div
-      draggable
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDragEnter={onDragEnter}
-      onDragEnd={onDragEnd}
       style={{
         position: 'relative',
         height: '90px',
         borderRadius: '6px',
         border: isDragging ? '2px dashed #101010' : '1px solid #e5e7eb',
         overflow: 'hidden',
-        cursor: 'grabbing',
+        cursor: 'grab',
         background: isDragging ? 'rgba(16, 16, 16, 0.05)' : '#f4f4f4',
         boxShadow: isDragging ? 'none' : 'rgba(36, 36, 36, 0.04) 0px 2px 4px 0px',
         opacity: isDragging ? 0.35 : 1,
-        transform: isDragging ? 'scale(0.92)' : 'none',
-        transition: 'transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.25s ease, border-color 0.25s ease'
+        width: '100%',
+        transition: 'all 0.25s ease'
       }}
     >
       <img src={url} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -98,8 +90,6 @@ export default function UploadProperty() {
 
   const [docs, setDocs] = useState<DocUploadItem[]>([]);
   const [images, setImages] = useState<File[]>([]);
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -116,51 +106,8 @@ export default function UploadProperty() {
   };
 
   const handleImagesSelected = (files: File[]) => {
-    // Filter only image files
     const imageFiles = files.filter(f => f.type.startsWith('image/'));
     setImages(prev => [...prev, ...imageFiles]);
-  };
-
-  // Draggable image list reordering handlers
-  const handleDragStart = (e: React.DragEvent, index: number) => {
-    setDraggedIndex(index);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDragEnterItem = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (draggedIndex === null || draggedIndex === index) return;
-
-    const rect = e.currentTarget.getBoundingClientRect();
-    const targetCenter = rect.left + rect.width / 2;
-    const clientX = e.clientX;
-
-    const isMovingRight = draggedIndex < index;
-    const isMovingLeft = draggedIndex > index;
-
-    if (isMovingRight && clientX > targetCenter) {
-      const reordered = [...images];
-      const draggedItem = reordered[draggedIndex];
-      reordered.splice(draggedIndex, 1);
-      reordered.splice(index, 0, draggedItem);
-      setDraggedIndex(index);
-      setImages(reordered);
-    } else if (isMovingLeft && clientX < targetCenter) {
-      const reordered = [...images];
-      const draggedItem = reordered[draggedIndex];
-      reordered.splice(draggedIndex, 1);
-      reordered.splice(index, 0, draggedItem);
-      setDraggedIndex(index);
-      setImages(reordered);
-    }
-  };
-
-  const handleDragEnd = () => {
-    setDraggedIndex(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -454,21 +401,19 @@ export default function UploadProperty() {
                     <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.5rem', fontWeight: 500 }}>
                       💡 Tip: Drag images to set order. The first image will be the primary cover listing.
                     </p>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: '0.65rem' }}>
-                      {images.map((imgFile, index) => (
+                    <DraggableGrid
+                      items={images}
+                      onChange={setImages}
+                      keyExtractor={(imgFile) => `${imgFile.name}-${imgFile.size}-${imgFile.lastModified}`}
+                      renderItem={(imgFile, index, isDragging) => (
                         <ImageThumbnail
-                          key={`${imgFile.name}-${index}`}
                           file={imgFile}
                           index={index}
-                          isDragging={index === draggedIndex}
-                          onRemove={() => setImages(images.filter((_, i) => i !== index))}
-                          onDragStart={(e) => handleDragStart(e, index)}
-                          onDragOver={handleDragOver}
-                          onDragEnter={(e) => handleDragEnterItem(e, index)}
-                          onDragEnd={handleDragEnd}
+                          isDragging={isDragging}
+                          onRemove={() => setImages(prev => prev.filter((_, i) => i !== index))}
                         />
-                      ))}
-                    </div>
+                      )}
+                    />
                   </div>
                 )}
               </div>
