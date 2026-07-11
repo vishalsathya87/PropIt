@@ -93,6 +93,8 @@ export default function UploadProperty() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const role = localStorage.getItem('user_role');
+  const dashboardPath = role === 'ADMIN' ? '/dashboard/admin' : '/dashboard/seller';
 
   const handleDocsSelected = (files: File[]) => {
     const newDocs = files.map(file => ({ type: 'Patta', file }));
@@ -182,7 +184,7 @@ export default function UploadProperty() {
       await api.post('/properties', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      navigate('/dashboard/seller');
+      navigate(dashboardPath);
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to list property');
     } finally {
@@ -195,7 +197,7 @@ export default function UploadProperty() {
       <div style={{ maxWidth: '900px', margin: '0 auto' }}>
         
         <div style={{ marginBottom: '1.5rem' }}>
-          <Link to="/dashboard/seller" style={{
+          <Link to={dashboardPath} style={{
             color: '#101010', textDecoration: 'none', fontWeight: 600, fontSize: '0.875rem',
             display: 'inline-flex', alignItems: 'center', gap: '0.3rem'
           }}>

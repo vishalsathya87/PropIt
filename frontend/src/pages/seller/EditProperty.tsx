@@ -120,6 +120,8 @@ export default function EditProperty() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const role = localStorage.getItem('user_role');
+  const dashboardPath = role === 'ADMIN' ? '/dashboard/admin' : '/dashboard/seller';
 
   useEffect(() => {
     api.get(`/properties/${id}`)
@@ -254,7 +256,7 @@ export default function EditProperty() {
       await api.put(`/properties/${id}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      navigate('/dashboard/seller');
+      navigate(dashboardPath);
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to update property details.');
     } finally {
@@ -273,7 +275,7 @@ export default function EditProperty() {
       <div style={{ maxWidth: '900px', margin: '0 auto' }}>
         
         <div style={{ marginBottom: '1.5rem' }}>
-          <Link to="/dashboard/seller" style={{
+          <Link to={dashboardPath} style={{
             color: '#101010', textDecoration: 'none', fontWeight: 600, fontSize: '0.875rem',
             display: 'inline-flex', alignItems: 'center', gap: '0.3rem'
           }}>

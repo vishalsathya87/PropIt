@@ -20,22 +20,56 @@ export default function PropertyDetails() {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   useEffect(() => {
-    api.get<DetailedProperty>(`/properties/${id}`)
-      .then((res) => setProp(res.data))
-      .catch((err) => {
+    const fetchProperty = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const propRes = await api.get<DetailedProperty>(`/properties/${id}`);
+        let propData = propRes.data;
+
+        // If logged in, check if already unlocked
+        const token = localStorage.getItem('token');
+        if (token) {
+          try {
+            const checkRes = await api.get(`/payments/check-unlock/${id}`);
+            if (checkRes.data.unlocked) {
+              propData = {
+                ...propData,
+                unlocked: true,
+                owner_name: checkRes.data.owner_name,
+                owner_phone: checkRes.data.owner_phone
+              };
+            }
+          } catch (err) {
+            console.error('Failed to check unlock status', err);
+          }
+        }
+
+        setProp(propData);
+      } catch (err) {
         console.error(err);
         setError('Listing could not be retrieved.');
-      })
-      .finally(() => setLoading(false));
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProperty();
   }, [id]);
 
   const handleMockUnlock = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setError('Please sign in first to unlock owner contact information.');
+      return;
+    }
     setUnlocking(true);
     setError('');
     try {
-      const res = await api.post(`/properties/${id}/unlock`);
+      const res = await api.post('/payments/mock-unlock', { property_id: id });
       setProp(prev => prev ? { ...prev, unlocked: true, owner_name: res.data.owner_name, owner_phone: res.data.owner_phone } : null);
-    } catch {
+    } catch (err: any) {
+      console.error(err);
       setError('Transaction validation failed. Please try again.');
     } finally {
       setUnlocking(false);

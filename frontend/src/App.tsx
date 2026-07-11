@@ -30,16 +30,16 @@ function App() {
 
           {/* Protected: Unified Dashboard (BUY + SELL) */}
           <Route path="dashboard/buyer" element={
-            <ProtectedRoute><UnifiedDashboard /></ProtectedRoute>
+            <ProtectedRoute requiredRole="BUYER"><UnifiedDashboard /></ProtectedRoute>
           } />
           <Route path="dashboard/seller" element={
-            <ProtectedRoute><UnifiedDashboard /></ProtectedRoute>
+            <ProtectedRoute requiredRole="SELLER"><UnifiedDashboard /></ProtectedRoute>
           } />
           <Route path="dashboard/seller/upload" element={
-            <ProtectedRoute><UploadProperty /></ProtectedRoute>
+            <ProtectedRoute requiredRole="SELLER"><UploadProperty /></ProtectedRoute>
           } />
           <Route path="dashboard/seller/edit/:id" element={
-            <ProtectedRoute><EditProperty /></ProtectedRoute>
+            <ProtectedRoute requiredRole="SELLER"><EditProperty /></ProtectedRoute>
           } />
 
           {/* Protected: Admin */}

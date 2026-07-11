@@ -128,7 +128,7 @@ async def create_property(
     db=Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    if current_user["role"] not in ("SELLER", "USER", "ADMIN"):
+    if current_user["role"] not in ("SELLER", "ADMIN"):
         raise HTTPException(status_code=403, detail="Only sellers can list properties")
 
     if len(doc_types) != len(files) or len(files) == 0:
@@ -204,7 +204,7 @@ async def create_property(
 # otherwise FastAPI will interpret "seller" as a property_id path parameter.
 @router.get("/seller/me", response_model=List[PropertyResponse])
 async def get_my_properties(db=Depends(get_db), current_user=Depends(get_current_user)):
-    if current_user["role"] not in ("SELLER", "USER", "ADMIN"):
+    if current_user["role"] not in ("SELLER", "ADMIN"):
         raise HTTPException(status_code=403, detail="Only sellers can view their listings here")
 
     properties = []
@@ -218,7 +218,7 @@ async def get_my_properties(db=Depends(get_db), current_user=Depends(get_current
 @router.get("/seller/me/stats")
 async def get_seller_stats(db=Depends(get_db), current_user=Depends(get_current_user)):
     """Return per-property unlock counts for the authenticated seller."""
-    if current_user["role"] not in ("SELLER", "USER", "ADMIN"):
+    if current_user["role"] not in ("SELLER", "ADMIN"):
         raise HTTPException(status_code=403, detail="Only sellers can view their stats")
 
     seller_id = str(current_user["_id"])
@@ -287,7 +287,7 @@ async def update_property(
     db=Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    if current_user["role"] not in ("SELLER", "USER", "ADMIN"):
+    if current_user["role"] not in ("SELLER", "ADMIN"):
         raise HTTPException(status_code=403, detail="Not authorized to edit")
 
     if not ObjectId.is_valid(property_id):

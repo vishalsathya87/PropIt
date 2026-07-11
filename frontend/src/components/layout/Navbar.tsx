@@ -132,10 +132,12 @@ export default function Navbar() {
               </Link>
 
               {/* Sell Button */}
-              <Link to="/dashboard/seller" className="btn-pill-dark">
-                <span style={{ marginRight: '0.15rem', fontWeight: 600 }}>+</span>
-                <span className="nav-btn-text">List Land</span>
-              </Link>
+              {(role === 'SELLER' || role === 'ADMIN') && (
+                <Link to="/dashboard/seller" className="btn-pill-dark">
+                  <span style={{ marginRight: '0.15rem', fontWeight: 600 }}>+</span>
+                  <span className="nav-btn-text">List Land</span>
+                </Link>
+              )}
 
               {/* User Avatar */}
               <div ref={dropdownRef} style={{ position: 'relative' }}>
