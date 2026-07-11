@@ -5,6 +5,7 @@ import Login from './pages/auth/Login';
 import Contact from './pages/Contact';
 import Help from './pages/Help';
 import Home from './pages/buyer/Home';
+import Browse from './pages/buyer/Browse';
 import PropertyDetails from './pages/buyer/PropertyDetails';
 import UnifiedDashboard from './pages/buyer/Dashboard';
 import UploadProperty from './pages/seller/UploadProperty';
@@ -23,6 +24,7 @@ function App() {
         <Route path="/" element={<Layout />}>
           {/* Public Routes */}
           <Route index element={<Home />} />
+          <Route path="browse" element={<Browse />} />
           <Route path="property/:id" element={<PropertyDetails />} />
           <Route path="wishlist" element={<Wishlist />} />
           <Route path="login" element={<Login />} />

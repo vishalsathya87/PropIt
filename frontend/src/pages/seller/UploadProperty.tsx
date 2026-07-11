@@ -453,8 +453,8 @@ export default function UploadProperty() {
 
             {/* Submit Block */}
             <div style={{ paddingTop: '1.5rem', borderTop: '1px solid #e5e7eb', marginTop: '1rem' }}>
-              <button type="submit" disabled={loading} className="btn-primary" style={{ width: '100%', padding: '1rem', borderRadius: '8px' }}>
-                {loading ? 'Publishing Registry...' : 'SUBMIT PROPERTY FOR VERIFICATION'}
+              <button type="submit" disabled={loading} className="btn-primary" style={{ width: '100%', padding: '0.9rem 1rem', borderRadius: '8px', fontSize: '0.875rem', letterSpacing: '0.02em', whiteSpace: 'normal', lineHeight: 1.3 }}>
+                {loading ? 'Publishing Registry...' : 'Submit Property for Verification'}
               </button>
             </div>
 

@@ -92,7 +92,10 @@ export default function Navbar() {
         {/* Center: Menu links */}
         <div className="navbar-center">
           <div className="nav-menu">
-            <Link to="/" className={`nav-menu-link${isActive('/') && location.pathname === '/' ? ' active' : ''}`}>
+            <Link to="/" className={`nav-menu-link${location.pathname === '/' ? ' active' : ''}`}>
+              Home
+            </Link>
+            <Link to="/browse" className={`nav-menu-link${isActive('/browse') ? ' active' : ''}`}>
               Browse
             </Link>
             {loggedIn && (
@@ -168,7 +171,8 @@ export default function Navbar() {
                           {role === 'ADMIN' ? 'Administrator' : 'Member'}
                         </span>
                       </div>
-                      <Link to="/" onClick={() => setDropdownOpen(false)} style={{ display: 'block', padding: '0.55rem 0.8rem', color: '#242424', textDecoration: 'none', fontSize: '0.8125rem', borderRadius: '8px' }}>Home / Browse</Link>
+                      <Link to="/" onClick={() => setDropdownOpen(false)} style={{ display: 'block', padding: '0.55rem 0.8rem', color: '#242424', textDecoration: 'none', fontSize: '0.8125rem', borderRadius: '8px' }}>Home</Link>
+                      <Link to="/browse" onClick={() => setDropdownOpen(false)} style={{ display: 'block', padding: '0.55rem 0.8rem', color: '#242424', textDecoration: 'none', fontSize: '0.8125rem', borderRadius: '8px' }}>Browse Listings</Link>
                       <Link to={role === 'ADMIN' ? '/dashboard/admin' : (role === 'SELLER' ? '/dashboard/seller' : '/dashboard/buyer')} onClick={() => setDropdownOpen(false)} style={{ display: 'block', padding: '0.55rem 0.8rem', color: '#242424', textDecoration: 'none', fontSize: '0.8125rem', borderRadius: '8px' }}>My Dashboard</Link>
                       <Link to="/help" onClick={() => setDropdownOpen(false)} style={{ display: 'block', padding: '0.55rem 0.8rem', color: '#242424', textDecoration: 'none', fontSize: '0.8125rem', borderRadius: '8px' }}>Help Center</Link>
                       <Link to="/contact" onClick={() => setDropdownOpen(false)} style={{ display: 'block', padding: '0.55rem 0.8rem', color: '#242424', textDecoration: 'none', fontSize: '0.8125rem', borderRadius: '8px' }}>Contact Support</Link>
@@ -233,7 +237,8 @@ export default function Navbar() {
                   <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#101010' }}>{displayName}</p>
                 </div>
               )}
-              <Link to="/" onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.75rem 1rem', color: '#242424', textDecoration: 'none', fontSize: '0.9375rem', fontWeight: 500, borderRadius: '8px' }}>Home / Browse</Link>
+              <Link to="/" onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.75rem 1rem', color: '#242424', textDecoration: 'none', fontSize: '0.9375rem', fontWeight: 500, borderRadius: '8px' }}>Home</Link>
+              <Link to="/browse" onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.75rem 1rem', color: '#242424', textDecoration: 'none', fontSize: '0.9375rem', fontWeight: 500, borderRadius: '8px' }}>Browse All</Link>
               {loggedIn && (
                 <>
                   <Link to={role === 'ADMIN' ? '/dashboard/admin' : (role === 'SELLER' ? '/dashboard/seller' : '/dashboard/buyer')} onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.75rem 1rem', color: '#242424', textDecoration: 'none', fontSize: '0.9375rem', fontWeight: 500, borderRadius: '8px' }}>My Dashboard</Link>
@@ -252,8 +257,8 @@ export default function Navbar() {
                 <button onClick={handleLogout} style={{ width: '100%', padding: '0.75rem 1rem', background: 'transparent', border: 'none', color: '#dc2626', fontWeight: 600, fontSize: '0.9375rem', textAlign: 'left', cursor: 'pointer', borderRadius: '8px', fontFamily: 'inherit' }}>Logout</button>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '0.5rem' }}>
-                  <Link to="/?action=buy" onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.75rem 0.5rem', color: '#10b981', textDecoration: 'none', fontWeight: 600 }}>Buy Land</Link>
-                  <Link to="/sell-guide" onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.75rem 0.5rem', color: '#0099ff', textDecoration: 'none', fontWeight: 600 }}>Sell Land</Link>
+                  <Link to="/?action=buy" onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.75rem 0.5rem', color: '#242424', textDecoration: 'none', fontWeight: 500 }}>Buy Land</Link>
+                  <Link to="/sell-guide" onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.75rem 0.5rem', color: '#242424', textDecoration: 'none', fontWeight: 500 }}>Sell Land</Link>
                   <div style={{ height: '1px', background: '#e5e7eb', margin: '0.25rem 0' }} />
                   <Link to="/login" state={{ mode: 'login' }} onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', textAlign: 'center', padding: '0.75rem', color: '#4b5563', textDecoration: 'none', fontWeight: 500, border: '1px solid #e5e7eb', borderRadius: '8px' }}>Sign in</Link>
                   <Link to="/login" state={{ mode: 'register' }} onClick={() => setMobileMenuOpen(false)} className="btn-pill-dark" style={{ width: '100%', display: 'flex', textDecoration: 'none' }}>Get started</Link>

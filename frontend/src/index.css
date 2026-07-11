@@ -658,7 +658,7 @@ body {
   }
 
   :root {
-    --hero-title-size: clamp(1.8rem, 8vw, 2.3rem);
+    --hero-title-size: clamp(2.1rem, 9vw, 2.8rem);
   }
 
   .hero-title {
@@ -666,7 +666,8 @@ body {
   }
 
   .hero-sub {
-    font-size: calc(var(--hero-title-size) * 3 / 5);
+    font-size: 0.875rem;
+    line-height: 1.55;
   }
 
 
