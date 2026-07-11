@@ -8,13 +8,14 @@ interface DocUploadItem {
   file: File;
 }
 
-function ImageThumbnail({ file, index, onRemove, onDragStart, onDragOver, onDragEnter, onDragEnd }: {
+function ImageThumbnail({ file, index, isDragging, onRemove, onDragStart, onDragOver, onDragEnter, onDragEnd }: {
   file: File;
   index: number;
+  isDragging: boolean;
   onRemove: () => void;
   onDragStart: (e: React.DragEvent) => void;
   onDragOver: (e: React.DragEvent) => void;
-  onDragEnter: () => void;
+  onDragEnter: (e: React.DragEvent) => void;
   onDragEnd: () => void;
 }) {
   const [url, setUrl] = useState('');
@@ -37,11 +38,14 @@ function ImageThumbnail({ file, index, onRemove, onDragStart, onDragOver, onDrag
         position: 'relative',
         height: '90px',
         borderRadius: '6px',
-        border: '1px solid #e5e7eb',
+        border: isDragging ? '2px dashed #101010' : '1px solid #e5e7eb',
         overflow: 'hidden',
-        cursor: 'grab',
-        background: '#f4f4f4',
-        boxShadow: 'rgba(36, 36, 36, 0.04) 0px 2px 4px 0px'
+        cursor: 'grabbing',
+        background: isDragging ? 'rgba(16, 16, 16, 0.05)' : '#f4f4f4',
+        boxShadow: isDragging ? 'none' : 'rgba(36, 36, 36, 0.04) 0px 2px 4px 0px',
+        opacity: isDragging ? 0.35 : 1,
+        transform: isDragging ? 'scale(0.92)' : 'none',
+        transition: 'transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.25s ease, border-color 0.25s ease'
       }}
     >
       <img src={url} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -127,14 +131,32 @@ export default function UploadProperty() {
     e.preventDefault();
   };
 
-  const handleDragEnterItem = (index: number) => {
+  const handleDragEnterItem = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
     if (draggedIndex === null || draggedIndex === index) return;
-    const reordered = [...images];
-    const draggedItem = reordered[draggedIndex];
-    reordered.splice(draggedIndex, 1);
-    reordered.splice(index, 0, draggedItem);
-    setDraggedIndex(index); // update index to follow dragging item
-    setImages(reordered);
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const targetCenter = rect.left + rect.width / 2;
+    const clientX = e.clientX;
+
+    const isMovingRight = draggedIndex < index;
+    const isMovingLeft = draggedIndex > index;
+
+    if (isMovingRight && clientX > targetCenter) {
+      const reordered = [...images];
+      const draggedItem = reordered[draggedIndex];
+      reordered.splice(draggedIndex, 1);
+      reordered.splice(index, 0, draggedItem);
+      setDraggedIndex(index);
+      setImages(reordered);
+    } else if (isMovingLeft && clientX < targetCenter) {
+      const reordered = [...images];
+      const draggedItem = reordered[draggedIndex];
+      reordered.splice(draggedIndex, 1);
+      reordered.splice(index, 0, draggedItem);
+      setDraggedIndex(index);
+      setImages(reordered);
+    }
   };
 
   const handleDragEnd = () => {
@@ -438,10 +460,11 @@ export default function UploadProperty() {
                           key={`${imgFile.name}-${index}`}
                           file={imgFile}
                           index={index}
+                          isDragging={index === draggedIndex}
                           onRemove={() => setImages(images.filter((_, i) => i !== index))}
                           onDragStart={(e) => handleDragStart(e, index)}
                           onDragOver={handleDragOver}
-                          onDragEnter={() => handleDragEnterItem(index)}
+                          onDragEnter={(e) => handleDragEnterItem(e, index)}
                           onDragEnd={handleDragEnd}
                         />
                       ))}

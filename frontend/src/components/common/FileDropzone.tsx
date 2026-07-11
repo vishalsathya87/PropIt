@@ -77,11 +77,11 @@ export default function FileDropzone({
       onClick={onContainerClick}
       style={{
         position: 'relative',
-        border: '2px dashed #e5e7eb',
+        border: '1.5px solid #d1d5db',
         borderRadius: '8px',
         padding: '2rem 1.5rem',
         textAlign: 'center',
-        background: '#ffffff',
+        background: '#fafafa',
         cursor: 'pointer',
         transition: 'all 0.15s ease',
         display: 'flex',
@@ -94,10 +94,12 @@ export default function FileDropzone({
         overflow: 'hidden'
       }}
       onMouseEnter={e => {
-        e.currentTarget.style.borderColor = '#d1d5db';
+        e.currentTarget.style.borderColor = '#101010';
+        e.currentTarget.style.background = '#f5f5f5';
       }}
       onMouseLeave={e => {
-        e.currentTarget.style.borderColor = '#e5e7eb';
+        e.currentTarget.style.borderColor = '#d1d5db';
+        e.currentTarget.style.background = '#fafafa';
       }}
     >
       <input
