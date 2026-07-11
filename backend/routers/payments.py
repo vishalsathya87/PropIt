@@ -162,6 +162,7 @@ async def get_document(
     if doc_index < 0 or doc_index >= len(documents):
         raise HTTPException(status_code=404, detail="Document not found")
 
+    import mimetypes
     doc = documents[doc_index]
     # doc["url"] is like "/uploads/documents/abc123.pdf"
     # Strip leading slash and build a path relative to the backend working dir
@@ -169,10 +170,14 @@ async def get_document(
     if not os.path.exists(relative_path):
         raise HTTPException(status_code=404, detail="Document file not found on server")
 
+    mime_type, _ = mimetypes.guess_type(relative_path)
+    if not mime_type:
+        mime_type = "application/octet-stream"
+
     return FileResponse(
         path=relative_path,
         filename=f"{doc.get('type', 'document')}_{doc_index}",
-        media_type="application/octet-stream",
+        media_type=mime_type,
     )
 
 

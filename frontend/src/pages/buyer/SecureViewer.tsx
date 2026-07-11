@@ -146,7 +146,9 @@ export default function SecureViewer() {
         style={{ userSelect: 'none', WebkitTouchCallout: 'none' }}
       >
         {/* Invisible overlay blocks right-click saving on images */}
-        <div className="absolute inset-0 z-10 cursor-not-allowed" onContextMenu={(e) => e.preventDefault()} />
+        {isImage && (
+          <div className="absolute inset-0 z-10 cursor-not-allowed" onContextMenu={(e) => e.preventDefault()} />
+        )}
 
         {state === 'loading' && (
           <div className="text-center z-20">
@@ -216,7 +218,6 @@ export default function SecureViewer() {
                   src={docUrl}
                   title={docType}
                   className="w-full h-full border-0"
-                  sandbox="allow-same-origin"
                 />
               </div>
             )}
