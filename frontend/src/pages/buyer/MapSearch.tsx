@@ -1400,7 +1400,6 @@ export default function MapSearch() {
             </>
           )}
         </div>
-        </div>
       </div>
       
       {/* ── MOBILE VIEW TOGGLE ── */}
