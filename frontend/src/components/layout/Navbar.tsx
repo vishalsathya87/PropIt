@@ -111,10 +111,13 @@ export default function Navbar() {
                 Wishlist
               </Link>
             )}
-            <Link to="/help" className="nav-menu-link">
+            <Link to="/settings" className={`nav-menu-link${isActive('/settings') ? ' active' : ''}`}>
+              Settings
+            </Link>
+            <Link to="/help" className={`nav-menu-link${isActive('/help') ? ' active' : ''}`}>
               Help
             </Link>
-            <Link to="/contact" className="nav-menu-link">
+            <Link to="/contact" className={`nav-menu-link${isActive('/contact') ? ' active' : ''}`}>
               Contact
             </Link>
           </div>
