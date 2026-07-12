@@ -28,9 +28,16 @@ interface User {
 
 interface Transaction {
   id: string;
+  buyer_id: string;
   buyer_phone: string;
+  buyer_name: string;
+  property_id: string;
   property_city: string;
-  property_district?: string;
+  property_district: string;
+  property_type: string;
+  seller_id: string;
+  seller_phone: string;
+  seller_name: string;
   amount: number;
   status: string;
   created_at?: string;
@@ -40,6 +47,7 @@ interface AdminStats {
   total_users: number;
   active_properties: number;
   pending_properties: number;
+  pending_sellers: number;
   total_transactions: number;
   total_revenue: number;
 }
@@ -272,7 +280,8 @@ export default function AdminDashboard() {
                 {[
                   { label: 'Total Users', value: stats.total_users, color: '#0f172a' },
                   { label: 'Active Properties', value: stats.active_properties, color: '#0f172a' },
-                  { label: 'Pending Review', value: stats.pending_properties, color: '#b8963e' },
+                  { label: 'Pending Reviews', value: stats.pending_properties, color: '#b8963e' },
+                  { label: 'Pending Sellers', value: stats.pending_sellers, color: '#b8963e' },
                   { label: 'Total Transactions', value: stats.total_transactions, color: '#0f172a' },
                 ].map(({ label, value, color }) => (
                   <div key={label} style={{
@@ -758,23 +767,30 @@ export default function AdminDashboard() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: 'rgba(15, 23, 42, 0.02)', borderBottom: '1px solid rgba(15, 23, 42, 0.06)' }}>
-                    {['Buyer', 'Property', 'Amount', 'Status', 'Date'].map(h => (
+                    {['Buyer', 'Seller', 'Property', 'Amount', 'Status', 'Date', 'Action'].map(h => (
                       <th key={h} style={{ padding: '1rem 1.5rem', textAlign: 'left', fontSize: '0.72rem', fontWeight: 800, color: 'rgba(15,23,42,0.45)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {filteredTransactions.length === 0 ? (
-                    <tr><td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: 'rgba(15,23,42,0.45)' }}>No transactions yet.</td></tr>
+                    <tr><td colSpan={7} style={{ padding: '2rem', textAlign: 'center', color: 'rgba(15,23,42,0.45)' }}>No transactions yet.</td></tr>
                   ) : filteredTransactions.map(tx => (
                     <tr key={tx.id} style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.06)', transition: 'background 0.15s' }}
                       onMouseEnter={e => (e.currentTarget.style.background = 'rgba(15,23,42,0.015)')}
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                     >
-                      <td style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', color: '#0f172a', fontFamily: 'monospace' }}>{tx.buyer_phone}</td>
+                      <td style={{ padding: '1rem 1.5rem', fontSize: '0.85rem' }}>
+                        <div style={{ fontWeight: 600, color: '#0f172a' }}>{tx.buyer_name !== 'Unknown' ? tx.buyer_name : tx.buyer_phone}</div>
+                        {tx.buyer_name !== 'Unknown' && <div style={{ fontSize: '0.75rem', color: 'rgba(15, 23, 42, 0.4)', fontFamily: 'monospace' }}>{tx.buyer_phone}</div>}
+                      </td>
+                      <td style={{ padding: '1rem 1.5rem', fontSize: '0.85rem' }}>
+                        <div style={{ fontWeight: 600, color: '#0f172a' }}>{tx.seller_name !== 'Unknown' ? tx.seller_name : tx.seller_phone}</div>
+                        {tx.seller_name !== 'Unknown' && <div style={{ fontSize: '0.75rem', color: 'rgba(15, 23, 42, 0.4)', fontFamily: 'monospace' }}>{tx.seller_phone}</div>}
+                      </td>
                       <td style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', color: 'rgba(15, 23, 42, 0.7)' }}>
-                        <div style={{ fontWeight: 600, color: '#0f172a' }}>{tx.property_city}</div>
-                        {tx.property_district && <div style={{ fontSize: '0.75rem', color: 'rgba(15, 23, 42, 0.4)' }}>{tx.property_district}</div>}
+                        <div style={{ fontWeight: 600, color: '#0f172a' }}>{tx.property_city}{tx.property_district ? `, ${tx.property_district}` : ''}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'rgba(15, 23, 42, 0.4)' }}>{tx.property_type || 'Land'}</div>
                       </td>
                       <td style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: 700, color: '#10b981' }}>
                         ₹{tx.amount.toLocaleString('en-IN')}
@@ -787,7 +803,28 @@ export default function AdminDashboard() {
                         }}>{tx.status}</span>
                       </td>
                       <td style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', color: 'rgba(15, 23, 42, 0.5)' }}>
-                        {tx.created_at ? new Date(tx.created_at).toLocaleDateString('en-IN') : '-'}
+                        {tx.created_at ? new Date(tx.created_at).toLocaleString('en-IN') : '-'}
+                      </td>
+                      <td style={{ padding: '1rem 1.5rem' }}>
+                        <button
+                          onClick={() => navigate(`/property/${tx.property_id}`)}
+                          style={{
+                            background: 'rgba(0, 122, 255, 0.08)',
+                            border: 'none',
+                            color: '#007aff',
+                            fontWeight: 600,
+                            padding: '0.4rem 0.8rem',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontFamily: 'inherit',
+                            fontSize: '0.8rem',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(0, 122, 255, 0.15)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'rgba(0, 122, 255, 0.08)'}
+                        >
+                          View
+                        </button>
                       </td>
                     </tr>
                   ))}

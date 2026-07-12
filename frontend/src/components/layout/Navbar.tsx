@@ -1,5 +1,5 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { clearToken } from '../../lib/api';
+import { api, clearToken } from '../../lib/api';
 import { useState, useEffect, useRef } from 'react';
 import { auth } from '../../lib/firebase';
 import { signOut } from 'firebase/auth';
@@ -14,7 +14,23 @@ export default function Navbar() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [adminNotifications, setAdminNotifications] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (role === 'ADMIN') {
+      const fetchAdminStats = async () => {
+        try {
+          const res = await api.get('/admin/stats');
+          const count = (res.data.pending_properties || 0) + (res.data.pending_sellers || 0);
+          setAdminNotifications(count);
+        } catch (e) {
+          console.error("Failed to fetch admin notifications");
+        }
+      };
+      fetchAdminStats();
+    }
+  }, [role]);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -143,6 +159,32 @@ export default function Navbar() {
                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                   </svg>
                 </Link>
+
+                {role === 'ADMIN' && (
+                  <Link to="/dashboard/admin" className="nav-link-item" title="Admin Notifications" style={{
+                    width: '32px', height: '32px', borderRadius: '50%', position: 'relative',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: '1px solid #e5e7eb', textDecoration: 'none',
+                    background: 'transparent', transition: 'background 0.15s ease',
+                    boxSizing: 'border-box'
+                  }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2">
+                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                      <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                    </svg>
+                    {adminNotifications > 0 && (
+                      <span style={{
+                        position: 'absolute', top: '-4px', right: '-4px',
+                        background: '#ff3b30', color: '#fff', fontSize: '0.6rem',
+                        fontWeight: 800, width: '16px', height: '16px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        borderRadius: '50%', border: '2px solid #fff'
+                      }}>
+                        {adminNotifications > 9 ? '9+' : adminNotifications}
+                      </span>
+                    )}
+                  </Link>
+                )}
 
                 {/* Sell Land pill — always visible for logged-in users, goes directly to upload form */}
                 {(role === 'SELLER' || role === 'ADMIN') && (
