@@ -54,6 +54,11 @@ export default function AdminDashboard() {
   const [error, setError] = useState('');
   const [viewDocsFor, setViewDocsFor] = useState<Property | null>(null);
   const [viewKycFor, setViewKycFor] = useState<User | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // Custom delete confirmation modals
+  const [deleteTargetUser, setDeleteTargetUser] = useState<string | null>(null);
+  const [deleteTargetProperty, setDeleteTargetProperty] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const BACKEND_ROOT = import.meta.env.VITE_API_ROOT || 'http://localhost:8000';
@@ -92,9 +97,9 @@ export default function AdminDashboard() {
   const shortId = (id: string) => id.slice(-8).toUpperCase();
 
   const handleDeleteUser = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this user?')) return;
     try {
       await api.delete(`/admin/users/${id}`);
+      setDeleteTargetUser(null);
       fetchData();
     } catch (err: any) {
       alert(err.response?.data?.detail || 'Failed to delete user');
@@ -102,9 +107,9 @@ export default function AdminDashboard() {
   };
 
   const handleDeleteProperty = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this property?')) return;
     try {
       await api.delete(`/admin/properties/${id}`);
+      setDeleteTargetProperty(null);
       fetchData();
     } catch (err: any) {
       alert(err.response?.data?.detail || 'Failed to delete property');
@@ -122,7 +127,6 @@ export default function AdminDashboard() {
   };
 
   const handleVerifySeller = async (id: string) => {
-    if (!confirm('Are you sure you want to approve this user as a Seller?')) return;
     try {
       await api.put(`/admin/users/${id}/verify-seller`);
       setViewKycFor(null);
@@ -148,7 +152,24 @@ export default function AdminDashboard() {
     </div>
   );
 
+  const filteredUsers = users.filter(u => 
+    u.phone_number.includes(searchQuery) || 
+    u.role.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    (u.full_name || '').toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
+  const filteredProperties = properties.filter(p => 
+    p.city.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    (p.district || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+    shortId(p.seller_id).toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (p.type || '').toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredTransactions = transactions.filter(t => 
+    t.buyer_phone.includes(searchQuery) || 
+    t.property_city.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (t.property_district || '').toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div style={{ background: '#faf9f6', minHeight: '100vh', padding: '1rem 1.5rem 3rem' }}>
@@ -213,6 +234,30 @@ export default function AdminDashboard() {
             </button>
           ))}
         </div>
+
+        {activeTab !== 'overview' && (
+          <div style={{ marginBottom: '1.5rem' }}>
+            <input
+              type="text"
+              placeholder={`Search in ${TAB_LABELS[activeTab]}...`}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: '100%',
+                maxWidth: '400px',
+                padding: '0.65rem 1rem',
+                borderRadius: '8px',
+                border: '1px solid rgba(15, 23, 42, 0.1)',
+                background: '#ffffff',
+                fontSize: '0.85rem',
+                fontFamily: 'inherit',
+                color: '#0f172a',
+                outline: 'none',
+                boxShadow: '0 2px 10px rgba(15, 23, 42, 0.02)'
+              }}
+            />
+          </div>
+        )}
 
         {/* OVERVIEW TAB */}
         {activeTab === 'overview' && stats && (
@@ -381,11 +426,11 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {[...properties]
+                  {[...filteredProperties]
                     .sort((a, b) => (b.view_count ?? 0) - (a.view_count ?? 0))
                     .length === 0 ? (
                       <tr><td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: 'rgba(15,23,42,0.45)' }}>No listings found.</td></tr>
-                    ) : [...properties]
+                    ) : [...filteredProperties]
                       .sort((a, b) => (b.view_count ?? 0) - (a.view_count ?? 0))
                       .map((p, index) => (
                         <tr key={p.id} style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.06)', transition: 'background 0.15s' }}
@@ -483,9 +528,9 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {users.length === 0 ? (
+                  {filteredUsers.length === 0 ? (
                     <tr><td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: 'rgba(15,23,42,0.45)' }}>No users found.</td></tr>
-                  ) : users.map(u => (
+                  ) : filteredUsers.map(u => (
                     <tr key={u.id} style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.06)', transition: 'background 0.15s' }}
                       onMouseEnter={e => (e.currentTarget.style.background = 'rgba(15,23,42,0.015)')}
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
@@ -527,7 +572,7 @@ export default function AdminDashboard() {
                           )}
                           {u.role !== 'ADMIN' && (
                             <button
-                              onClick={() => handleDeleteUser(u.id)}
+                              onClick={() => setDeleteTargetUser(u.id)}
                               style={{
                                 background: 'rgba(255, 59, 48, 0.08)',
                                 border: 'none',
@@ -569,9 +614,9 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {properties.length === 0 ? (
+                  {filteredProperties.length === 0 ? (
                     <tr><td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: 'rgba(15,23,42,0.45)' }}>No properties found.</td></tr>
-                  ) : properties.map(p => (
+                  ) : filteredProperties.map(p => (
                     <tr key={p.id} style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.06)', transition: 'background 0.15s' }}
                       onMouseEnter={e => (e.currentTarget.style.background = 'rgba(15,23,42,0.015)')}
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
@@ -678,7 +723,7 @@ export default function AdminDashboard() {
                             Edit
                           </button>
                           <button
-                            onClick={() => handleDeleteProperty(p.id)}
+                            onClick={() => setDeleteTargetProperty(p.id)}
                             style={{
                               background: 'rgba(255, 59, 48, 0.08)',
                               border: 'none',
@@ -719,9 +764,9 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {transactions.length === 0 ? (
+                  {filteredTransactions.length === 0 ? (
                     <tr><td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: 'rgba(15,23,42,0.45)' }}>No transactions yet.</td></tr>
-                  ) : transactions.map(tx => (
+                  ) : filteredTransactions.map(tx => (
                     <tr key={tx.id} style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.06)', transition: 'background 0.15s' }}
                       onMouseEnter={e => (e.currentTarget.style.background = 'rgba(15,23,42,0.015)')}
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
@@ -930,6 +975,98 @@ export default function AdminDashboard() {
                   onMouseLeave={e => e.currentTarget.style.background = '#10b981'}
                 >
                   Approve Seller
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete User Modal */}
+        {deleteTargetUser && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', zIndex: 100 }}>
+            <div style={{ background: '#ffffff', border: '1px solid rgba(15, 23, 42, 0.08)', borderRadius: '12px', boxShadow: '0 12px 40px rgba(15,23,42,0.08)', maxWidth: '400px', width: '100%', padding: '1.5rem' }}>
+              <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.5rem 0' }}>Delete User?</h2>
+              <p style={{ fontSize: '0.85rem', color: 'rgba(15, 23, 42, 0.6)', marginBottom: '1.5rem', lineHeight: 1.5 }}>Are you sure you want to delete this user? This action will permanently remove all their properties, transactions, and data. This cannot be undone.</p>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                <button
+                  onClick={() => setDeleteTargetUser(null)}
+                  style={{
+                    padding: '0.55rem 1rem',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(15,23,42,0.1)',
+                    background: 'transparent',
+                    color: 'rgba(15,23,42,0.7)',
+                    fontWeight: 600,
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (deleteTargetUser) handleDeleteUser(deleteTargetUser);
+                  }}
+                  style={{
+                    padding: '0.55rem 1rem',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: '#ff3b30',
+                    color: '#ffffff',
+                    fontWeight: 600,
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit'
+                  }}
+                >
+                  Delete User
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Property Modal */}
+        {deleteTargetProperty && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', zIndex: 100 }}>
+            <div style={{ background: '#ffffff', border: '1px solid rgba(15, 23, 42, 0.08)', borderRadius: '12px', boxShadow: '0 12px 40px rgba(15,23,42,0.08)', maxWidth: '400px', width: '100%', padding: '1.5rem' }}>
+              <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.5rem 0' }}>Delete Property?</h2>
+              <p style={{ fontSize: '0.85rem', color: 'rgba(15, 23, 42, 0.6)', marginBottom: '1.5rem', lineHeight: 1.5 }}>Are you sure you want to delete this property listing? This action cannot be undone.</p>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                <button
+                  onClick={() => setDeleteTargetProperty(null)}
+                  style={{
+                    padding: '0.55rem 1rem',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(15,23,42,0.1)',
+                    background: 'transparent',
+                    color: 'rgba(15,23,42,0.7)',
+                    fontWeight: 600,
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (deleteTargetProperty) handleDeleteProperty(deleteTargetProperty);
+                  }}
+                  style={{
+                    padding: '0.55rem 1rem',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: '#ff3b30',
+                    color: '#ffffff',
+                    fontWeight: 600,
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit'
+                  }}
+                >
+                  Delete Property
                 </button>
               </div>
             </div>
