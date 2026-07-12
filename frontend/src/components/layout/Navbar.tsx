@@ -111,9 +111,6 @@ export default function Navbar() {
                 Wishlist
               </Link>
             )}
-            <Link to="/settings" className={`nav-menu-link${isActive('/settings') ? ' active' : ''}`}>
-              Settings
-            </Link>
             <Link to="/help" className={`nav-menu-link${isActive('/help') ? ' active' : ''}`}>
               Help
             </Link>
@@ -263,6 +260,25 @@ export default function Navbar() {
                 </Link>
               </>
             )}
+
+            {/* Settings Icon (Desktop) */}
+            <Link to="/settings" title="Settings" style={{
+              width: '32px', height: '32px', borderRadius: '50%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: '1px solid #e5e7eb', textDecoration: 'none',
+              background: isActive('/settings') ? '#f4f4f4' : 'transparent',
+              transition: 'background 0.15s ease, transform 0.1s ease',
+              boxSizing: 'border-box',
+              marginLeft: '0.25rem'
+            }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'rotate(30deg) scale(1.05)'; e.currentTarget.style.background = '#f9fafb'; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'rotate(0deg) scale(1)'; e.currentTarget.style.background = isActive('/settings') ? '#f4f4f4' : 'transparent'; }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={isActive('/settings') ? '#101010' : '#4b5563'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+            </Link>
           </div>
 
           {/* Mobile Menu Button */}
