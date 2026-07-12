@@ -874,7 +874,7 @@ export default function MapSearch() {
           }
           .split-view-container {
             grid-template-columns: 1fr !important;
-            grid-template-rows: 1fr 1fr !important;
+            grid-template-rows: 40vh 1fr !important;
             height: 100% !important;
             overflow: hidden !important;
             padding: 0 !important;
@@ -910,7 +910,7 @@ export default function MapSearch() {
         display: 'flex',
         alignItems: 'center',
         gap: '0.5rem',
-        zIndex: 50,
+        zIndex: 1000,
         overflowX: 'auto',
         whiteSpace: 'nowrap'
       }}>
@@ -1038,6 +1038,7 @@ export default function MapSearch() {
               center={mapCenter}
               zoom={mapZoom}
               zoomControl={false}
+              attributionControl={false}
               maxBounds={[[5, 68], [24, 88]]} // locks viewport bounds to India space
               minZoom={6}
               style={{ height: '100%', width: '100%' }}
