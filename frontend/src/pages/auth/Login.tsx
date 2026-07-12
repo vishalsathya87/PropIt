@@ -92,7 +92,7 @@ export default function Login() {
         uid: firebaseUser.uid, 
         email: regEmail, 
         phone_number: regPhone, 
-        role: regRole, 
+        role: 'USER', 
         full_name: regName 
       };
       
@@ -102,18 +102,14 @@ export default function Login() {
       
       await api.post('/auth/register', payload);
 
+      localStorage.setItem('user_role', 'USER');
+      localStorage.setItem('user_phone', regPhone);
+      window.dispatchEvent(new Event('storage'));
+      
       if (regRole === 'SELLER') {
-        // Log them out and show pending message
-        await auth.signOut();
-        localStorage.removeItem('token');
-        setStep('login');
-        setSuccessMsg('Your seller account request has been submitted. The admin will review your KYC documents. You will be able to log in once approved.');
-      } else {
-        localStorage.setItem('user_role', 'USER');
-        localStorage.setItem('user_phone', regPhone);
-        window.dispatchEvent(new Event('storage'));
-        navigate('/dashboard/buyer');
+        alert('Account created! You can use the app as a Buyer immediately. Your Seller Account request has been sent to the admin for KYC verification.');
       }
+      navigate('/dashboard/buyer');
     } catch (err: any) {
       console.error(err);
       if (firebaseUser) { try { await firebaseUser.delete(); } catch {} }

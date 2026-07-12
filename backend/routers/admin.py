@@ -191,6 +191,36 @@ async def delete_property(
     return {"message": "Property deleted successfully"}
 
 
+@router.put("/users/{user_id}/verify-seller")
+async def verify_seller(
+    user_id: str,
+    db=Depends(get_db),
+    current_admin=Depends(get_current_admin)
+):
+    user = await db.users.find_one({"_id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    if user.get("role") == "SELLER" and user.get("kyc_details", {}).get("status") == "APPROVED":
+        return {"message": "User is already an approved seller"}
+
+    # Update role to SELLER and status to APPROVED
+    result = await db.users.update_one(
+        {"_id": user_id},
+        {
+            "$set": {
+                "role": "SELLER",
+                "kyc_details.status": "APPROVED"
+            }
+        }
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=400, detail="Failed to update user")
+        
+    return {"message": "Seller account approved successfully"}
+
+
 @router.delete("/users/{user_id}")
 async def delete_user(
     user_id: str,

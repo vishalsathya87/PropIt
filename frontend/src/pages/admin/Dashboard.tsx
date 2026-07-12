@@ -18,6 +18,11 @@ interface User {
   phone_number: string;
   role: string;
   full_name?: string;
+  kyc_details?: {
+    aadhaar_number: string;
+    pan_number: string;
+    status: string;
+  };
   created_at?: string;
 }
 
@@ -112,6 +117,16 @@ export default function AdminDashboard() {
       fetchData();
     } catch (err: any) {
       alert(err.response?.data?.detail || 'Failed to update property status');
+    }
+  };
+
+  const handleVerifySeller = async (id: string) => {
+    if (!confirm('Are you sure you want to approve this user as a Seller?')) return;
+    try {
+      await api.put(`/admin/users/${id}/verify-seller`);
+      fetchData();
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to verify seller');
     }
   };
 
@@ -486,27 +501,50 @@ export default function AdminDashboard() {
                         {u.created_at ? new Date(u.created_at).toLocaleDateString('en-IN') : '-'}
                       </td>
                       <td style={{ padding: '1rem 1.5rem', fontSize: '0.85rem' }}>
-                        {u.role !== 'ADMIN' && (
-                          <button
-                            onClick={() => handleDeleteUser(u.id)}
-                            style={{
-                              background: 'rgba(255, 59, 48, 0.08)',
-                              border: 'none',
-                              color: '#ff3b30',
-                              fontWeight: 600,
-                              padding: '0.4rem 0.8rem',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                              fontFamily: 'inherit',
-                              fontSize: '0.8rem',
-                              transition: 'all 0.15s ease'
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255, 59, 48, 0.15)'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255, 59, 48, 0.08)'}
-                          >
-                            Delete
-                          </button>
-                        )}
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          {u.kyc_details?.status === 'PENDING' && u.role === 'USER' && (
+                            <button
+                              onClick={() => handleVerifySeller(u.id)}
+                              style={{
+                                background: 'rgba(16, 185, 129, 0.08)',
+                                border: 'none',
+                                color: '#10b981',
+                                fontWeight: 600,
+                                padding: '0.4rem 0.8rem',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                fontFamily: 'inherit',
+                                fontSize: '0.8rem',
+                                transition: 'all 0.15s ease'
+                              }}
+                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(16, 185, 129, 0.15)'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'rgba(16, 185, 129, 0.08)'}
+                            >
+                              Approve Seller
+                            </button>
+                          )}
+                          {u.role !== 'ADMIN' && (
+                            <button
+                              onClick={() => handleDeleteUser(u.id)}
+                              style={{
+                                background: 'rgba(255, 59, 48, 0.08)',
+                                border: 'none',
+                                color: '#ff3b30',
+                                fontWeight: 600,
+                                padding: '0.4rem 0.8rem',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                fontFamily: 'inherit',
+                                fontSize: '0.8rem',
+                                transition: 'all 0.15s ease'
+                              }}
+                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255, 59, 48, 0.15)'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'rgba(255, 59, 48, 0.08)'}
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
