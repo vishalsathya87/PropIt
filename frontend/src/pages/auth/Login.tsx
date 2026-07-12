@@ -67,6 +67,7 @@ export default function Login() {
     e.preventDefault();
     if (regPassword !== regConfirm) { setError('Passwords do not match.'); return; }
     if (regPassword.length < 6) { setError('Password must be at least 6 characters.'); return; }
+    if (!/^\d{10}$/.test(regPhone)) { setError('Phone number must be exactly 10 digits.'); return; }
     if (regRole === 'SELLER' && (!aadhaar || !pan)) { setError('Aadhaar and PAN numbers are required for Seller registration.'); return; }
     setLoading(true); setError(''); setSuccessMsg('');
     let firebaseUser: any = null;
@@ -106,7 +107,21 @@ export default function Login() {
       console.error(err);
       if (firebaseUser) { try { await firebaseUser.delete(); } catch {} }
       localStorage.removeItem('token');
-      setError(err.response?.data?.detail || err.message || 'Registration failed.');
+      
+      let errorMsg = 'Registration failed.';
+      if (err.response?.data?.detail) {
+        const detail = err.response.data.detail;
+        if (Array.isArray(detail)) {
+          errorMsg = detail.map((d: any) => `${d.loc[d.loc.length - 1]}: ${d.msg}`).join(', ');
+        } else if (typeof detail === 'string') {
+          errorMsg = detail;
+        } else {
+          errorMsg = JSON.stringify(detail);
+        }
+      } else if (err.message) {
+        errorMsg = err.message;
+      }
+      setError(errorMsg);
     } finally { setLoading(false); }
   };
 
