@@ -1,4 +1,4 @@
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { api, clearToken } from '../../lib/api';
 import { useState, useEffect, useRef } from 'react';
 import { auth } from '../../lib/firebase';
@@ -7,6 +7,25 @@ import { signOut } from 'firebase/auth';
 export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const isMobileMap = isMobile && location.pathname === '/map';
+  const searchTerm = searchParams.get('search') || '';
+
+  const handleSearchChange = (val: string) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (val) newParams.set('search', val);
+    else newParams.delete('search');
+    setSearchParams(newParams);
+  };
+
   const [loggedIn, setLoggedIn] = useState(false);
   const [role, setRole] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -92,7 +111,7 @@ export default function Navbar() {
       <div className="navbar-container">
 
         {/* Left: Brand */}
-        <div className="navbar-left">
+        <div className="navbar-left" style={isMobileMap ? { flex: 'none' } : {}}>
           <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none' }}>
             <div style={{
               width: '28px', height: '28px', borderRadius: '6px',
@@ -104,14 +123,50 @@ export default function Navbar() {
                 <path d="M9 3v18M15 3v18M3 9h18M3 15h18" />
               </svg>
             </div>
-            <span className="nav-logo-text" style={{
-              fontFamily: "'Poppins', sans-serif",
-              fontSize: '1rem', fontWeight: 600, color: '#101010', letterSpacing: '0.01em'
-            }}>
-              TERRITORY
-            </span>
+            {!isMobileMap && (
+              <span className="nav-logo-text" style={{
+                fontFamily: "'Poppins', sans-serif",
+                fontSize: '1rem', fontWeight: 600, color: '#101010', letterSpacing: '0.01em'
+              }}>
+                TERRITORY
+              </span>
+            )}
           </Link>
         </div>
+
+        {/* Mobile Search Input between logo icon and hamburger */}
+        {isMobileMap && (
+          <div style={{
+            flex: 1,
+            margin: '0 0.5rem 0 0.75rem',
+            display: 'flex',
+            alignItems: 'center',
+            height: '32px',
+            background: '#f4f4f4',
+            borderRadius: '99px',
+            padding: '0 0.75rem',
+            border: '1px solid #e5e7eb'
+          }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              type="text"
+              placeholder="Search lands..."
+              value={searchTerm}
+              onChange={e => handleSearchChange(e.target.value)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                width: '100%',
+                fontSize: '0.78rem',
+                color: '#101010',
+                fontFamily: 'inherit'
+              }}
+            />
+          </div>
+        )}
 
         {/* Center: Menu links */}
         <div className="navbar-center">
@@ -150,7 +205,7 @@ export default function Navbar() {
         </div>
 
         {/* Right: Actions (Desktop & Mobile Unified) */}
-        <div className="navbar-right" ref={dropdownRef}>
+        <div className="navbar-right" ref={dropdownRef} style={isMobileMap ? { flex: 'none' } : {}}>
           {/* Desktop Right Actions */}
           <div className="desktop-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             {loggedIn ? (
@@ -336,67 +391,79 @@ export default function Navbar() {
           {mobileMenuOpen && (
             <div className="mobile-dropdown-menu" style={{
               position: 'absolute', top: 'calc(100% + 10px)', right: '1.25rem', left: '1.25rem',
-              background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '12px',
-              boxShadow: 'rgba(36,36,36,0.1) 0px 10px 20px -5px', zIndex: 9999, padding: '0.5rem',
-              display: 'flex', flexDirection: 'column'
+              background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '16px',
+              boxShadow: '0 12px 30px rgba(0,0,0,0.08)', zIndex: 999999, padding: '0.75rem',
+              display: 'flex', flexDirection: 'column', gap: '0.45rem'
             }}>
-              {loggedIn && (
-                <div style={{ padding: '0.6rem 0.8rem', borderBottom: '1px solid #f4f4f4', marginBottom: '0.25rem' }}>
-                  <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#101010' }}>{displayName}</p>
-                </div>
-              )}
-              <Link to="/" onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.75rem 1rem', color: '#242424', textDecoration: 'none', fontSize: '0.9375rem', fontWeight: 500, borderRadius: '8px' }}>Home</Link>
-              <Link to="/browse" onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.75rem 1rem', color: '#242424', textDecoration: 'none', fontSize: '0.9375rem', fontWeight: 500, borderRadius: '8px' }}>Browse All</Link>
-              <Link to="/map" onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.75rem 1rem', color: '#242424', textDecoration: 'none', fontSize: '0.9375rem', fontWeight: 500, borderRadius: '8px' }}>Map Search</Link>
-              {loggedIn && (
-                <>
-                  <Link to={role === 'ADMIN' ? '/dashboard/admin' : (role === 'SELLER' ? '/dashboard/seller' : '/dashboard/buyer')} onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.75rem 1rem', color: '#242424', textDecoration: 'none', fontSize: '0.9375rem', fontWeight: 500, borderRadius: '8px' }}>My Dashboard</Link>
-                  <Link to="/wishlist" onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.75rem 1rem', color: '#242424', textDecoration: 'none', fontSize: '0.9375rem', fontWeight: 500, borderRadius: '8px' }}>Wishlist</Link>
-                  {(role === 'SELLER' || role === 'ADMIN') && (
-                    <Link
-                      to="/dashboard/seller/upload"
-                      onClick={() => setMobileMenuOpen(false)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.35rem',
-                        margin: '0.5rem 0.25rem',
-                        padding: '0.65rem 1.25rem',
-                        background: '#ffffff',
-                        color: '#101010',
-                        border: '4px solid #101010',
-                        borderRadius: '9999px',
-                        textDecoration: 'none',
-                        fontSize: '0.85rem',
-                        fontWeight: 900,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.08em',
-                        textAlign: 'center'
-                      }}
-                    >
-                      <span style={{ fontSize: '1rem', fontWeight: 900 }}>+</span>
-                      <span>Sell Land</span>
-                    </Link>
-                  )}
-                </>
-              )}
-              <Link to="/help" onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.75rem 1rem', color: '#242424', textDecoration: 'none', fontSize: '0.9375rem', fontWeight: 500, borderRadius: '8px' }}>Help Center</Link>
-              <Link to="/settings" onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.75rem 1rem', color: '#242424', textDecoration: 'none', fontSize: '0.9375rem', fontWeight: 500, borderRadius: '8px' }}>Settings</Link>
-              <Link to="/contact" onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.75rem 1rem', color: '#242424', textDecoration: 'none', fontSize: '0.9375rem', fontWeight: 500, borderRadius: '8px' }}>Contact Support</Link>
-              
-              <div style={{ height: '1px', background: '#e5e7eb', margin: '0.5rem 0' }} />
-              
+              {/* SECTION 1 */}
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <Link to="/" onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.65rem 1rem', color: '#101010', textDecoration: 'none', fontSize: '0.88rem', fontWeight: 500, fontFamily: "'Inter', sans-serif" }}>Home</Link>
+                <Link to="/browse" onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.65rem 1rem', color: '#101010', textDecoration: 'none', fontSize: '0.88rem', fontWeight: 500, fontFamily: "'Inter', sans-serif" }}>Browse All</Link>
+                <Link to="/map" onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.65rem 1rem', color: '#101010', textDecoration: 'none', fontSize: '0.88rem', fontWeight: 500, fontFamily: "'Inter', sans-serif" }}>Map Search</Link>
+                <Link to="/help" onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.65rem 1rem', color: '#101010', textDecoration: 'none', fontSize: '0.88rem', fontWeight: 500, fontFamily: "'Inter', sans-serif" }}>Help Center</Link>
+                <Link to={loggedIn ? (role === 'ADMIN' ? '/dashboard/admin' : (role === 'SELLER' ? '/dashboard/seller' : '/dashboard/buyer')) : '/help'} onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.65rem 1rem', color: '#101010', textDecoration: 'none', fontSize: '0.88rem', fontWeight: 500, fontFamily: "'Inter', sans-serif" }}>Settings</Link>
+                <Link to="/contact" onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.65rem 1rem', color: '#101010', textDecoration: 'none', fontSize: '0.88rem', fontWeight: 500, fontFamily: "'Inter', sans-serif" }}>Contact Support</Link>
+              </div>
+
+              <div style={{ height: '1px', background: '#f0efee', margin: '0.2rem 0' }} />
+
+              {/* SECTION 2 */}
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <Link to="/browse" onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.65rem 1rem', color: '#101010', textDecoration: 'none', fontSize: '0.88rem', fontWeight: 500, fontFamily: "'Inter', sans-serif" }}>Buy Land</Link>
+                <Link to="/map" onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.65rem 1rem', color: '#101010', textDecoration: 'none', fontSize: '0.88rem', fontWeight: 500, fontFamily: "'Inter', sans-serif" }}>Map Search</Link>
+                <Link to={loggedIn ? '/dashboard/seller/upload' : '/sell-guide'} onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.65rem 1rem', color: '#101010', textDecoration: 'none', fontSize: '0.88rem', fontWeight: 500, fontFamily: "'Inter', sans-serif" }}>Sell Land</Link>
+              </div>
+
+              <div style={{ height: '1px', background: '#f0efee', margin: '0.2rem 0' }} />
+
+              {/* SECTION 3 (Auth display / Actions) */}
               {loggedIn ? (
-                <button onClick={handleLogout} style={{ width: '100%', padding: '0.75rem 1rem', background: 'transparent', border: 'none', color: '#dc2626', fontWeight: 600, fontSize: '0.9375rem', textAlign: 'left', cursor: 'pointer', borderRadius: '8px', fontFamily: 'inherit' }}>Logout</button>
+                <div style={{ padding: '0.35rem 0.5rem 0.5rem 0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem', background: '#f9fafb', borderRadius: '10px' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', overflow: 'hidden', background: '#101010', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: '0.8rem' }}>
+                      {avatarUrl ? (
+                        <img src={avatarUrl} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        displayName ? displayName[0].toUpperCase() : 'U'
+                      )}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: 700, color: '#101010', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayName}</p>
+                      <span style={{ fontSize: '0.68rem', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.02em' }}>{role === 'ADMIN' ? 'Admin' : 'Member'}</span>
+                    </div>
+                  </div>
+                  <Link to={role === 'ADMIN' ? '/dashboard/admin' : (role === 'SELLER' ? '/dashboard/seller' : '/dashboard/buyer')} onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.6rem 0.5rem', color: '#4b5563', textDecoration: 'none', fontSize: '0.82rem', fontWeight: 600 }}>My Dashboard</Link>
+                  <Link to="/wishlist" onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.6rem 0.5rem', color: '#4b5563', textDecoration: 'none', fontSize: '0.82rem', fontWeight: 600 }}>Wishlist</Link>
+                  <button onClick={handleLogout} style={{ width: '100%', padding: '0.75rem', background: 'transparent', border: 'none', color: '#dc2626', fontWeight: 700, fontSize: '0.88rem', textAlign: 'center', cursor: 'pointer', borderRadius: '10px', fontFamily: 'inherit', marginTop: '0.2rem' }}>Logout</button>
+                </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '0.5rem' }}>
-                  <Link to="/browse" onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.75rem 0.5rem', color: '#242424', textDecoration: 'none', fontWeight: 500 }}>Buy Land</Link>
-                  <Link to="/map" onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.75rem 0.5rem', color: '#242424', textDecoration: 'none', fontWeight: 500 }}>Map Search</Link>
-                  <Link to="/sell-guide" onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', padding: '0.75rem 0.5rem', color: '#242424', textDecoration: 'none', fontWeight: 500 }}>Sell Land</Link>
-                  <div style={{ height: '1px', background: '#e5e7eb', margin: '0.25rem 0' }} />
-                  <Link to="/login" state={{ mode: 'login' }} onClick={() => setMobileMenuOpen(false)} style={{ display: 'block', textAlign: 'center', padding: '0.75rem', color: '#4b5563', textDecoration: 'none', fontWeight: 500, border: '1px solid #e5e7eb', borderRadius: '8px' }}>Sign in</Link>
-                  <Link to="/login" state={{ mode: 'register' }} onClick={() => setMobileMenuOpen(false)} className="btn-pill-dark" style={{ width: '100%', display: 'flex', textDecoration: 'none' }}>Get started</Link>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '0.35rem 0.5rem 0.5rem' }}>
+                  <Link
+                    to="/login"
+                    state={{ mode: 'login' }}
+                    onClick={() => setMobileMenuOpen(false)}
+                    style={{
+                      height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: '10px',
+                      color: '#101010', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 700,
+                      fontFamily: "'Inter', sans-serif", boxSizing: 'border-box'
+                    }}
+                  >
+                    Sign in
+                  </Link>
+                  <Link
+                    to="/login"
+                    state={{ mode: 'register' }}
+                    onClick={() => setMobileMenuOpen(false)}
+                    style={{
+                      height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: '#101010', color: '#ffffff', borderRadius: '10px',
+                      textDecoration: 'none', fontSize: '0.85rem', fontWeight: 700,
+                      fontFamily: "'Inter', sans-serif", boxSizing: 'border-box'
+                    }}
+                  >
+                    Get started
+                  </Link>
                 </div>
               )}
             </div>

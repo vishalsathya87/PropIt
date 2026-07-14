@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Tooltip, Polygon, GeoJSON, useMapEvents, CircleMarker } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -8,8 +9,8 @@ import type { Property } from '../../lib/types';
 import { getPropertyImageUrl } from '../../lib/types';
 import { TAMIL_NADU_GEOJSON as OFFLINE_GEOJSON } from '../../components/common/tamilnadu_geojson';
 import TAMIL_NADU_CITY_DIVISIONS from '../../components/common/tamilnadu_city_divisions.json';
-import { useSettings } from '../../contexts/SettingsContext';
-import GlareHover from '../../components/ui/GlareHover';
+
+
 
 // Styled Google Maps Tile Server (Hides all roads, highways, and place labels)
 const MAP_TILES = 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&apistyle=s.t:0|s.e:l|p.v:off,s.t:3|p.v:off';
@@ -24,8 +25,6 @@ interface MajorCity {
 }
 
 // Helper to normalize spellings across GeoJSON and directory keys
-
-// Maps old 2011 Census district/taluk pairs to modern 38 districts
 const getModernDistrict = (talukName: string, originalDistrict: string): string => {
   const t = normalizeName(talukName);
   const d = normalizeName(originalDistrict);
@@ -125,275 +124,184 @@ const TAMIL_NADU_DISTRICTS = [
 
 // Thorough mapping of all districts to their curated major/big cities
 const DISTRICT_CITIES: Record<string, MajorCity[]> = {
-  [normalizeName("Ariyalur")]: [
-    { name: "Ariyalur", coords: [11.1401, 79.0747] },
-    { name: "Jayankondam", coords: [11.2119861, 79.3648642] },
-    { name: "Sendurai", coords: [11.2720093, 79.1865576] },
-    { name: "Udayarpalayam", coords: [11.1588136, 79.3444131] }
+  [normalizeName("Chennai")]: [
+    { name: "Chennai City", coords: [13.0827, 80.2707] },
+    { name: "Adyar", coords: [13.0012, 80.2565] },
+    { name: "Anna Nagar", coords: [13.0850, 80.2101] }
   ],
   [normalizeName("Chengalpattu")]: [
     { name: "Chengalpattu", coords: [12.6841, 79.9836] },
     { name: "Tambaram", coords: [12.9229, 80.1275] },
     { name: "Pallavaram", coords: [12.9675, 80.1849] },
-    { name: "Guduvancheri", coords: [12.8452303, 80.0576503] },
-    { name: "Maraimalai Nagar", coords: [12.7958223, 80.0269097] },
-    { name: "Mahabalipuram", coords: [12.6208, 80.1945] },
-    { name: "Madurantakam", coords: [12.5081836, 79.8882285] }
+    { name: "Mahabalipuram", coords: [12.6208, 80.1945] }
   ],
-  [normalizeName("Chennai")]: [
-    { name: "Chennai", coords: [13.0836939, 80.270186] }
-  ],
-  [normalizeName("Coimbatore")]: [
-    { name: "Coimbatore", coords: [11.0168, 76.9558] },
-    { name: "Pollachi", coords: [10.6589, 77.0091] },
-    { name: "Mettupalayam", coords: [11.3006, 76.9407] },
-    { name: "Valparai", coords: [10.3279931, 76.9557258] },
-    { name: "Sulur", coords: [10.9890536, 77.1014971] },
-    { name: "Kinathukadavu", coords: [10.8284322, 77.0254459] }
-  ],
-  [normalizeName("Cuddalore")]: [
-    { name: "Cuddalore", coords: [11.748, 79.7714] },
-    { name: "Neyveli", coords: [11.6053, 79.4862] },
-    { name: "Chidambaram", coords: [11.3984, 79.6954] },
-    { name: "Panruti", coords: [11.7722823, 79.5518978] },
-    { name: "Virudhachalam", coords: [11.5478752, 79.38454] },
-    { name: "Vadalur", coords: [11.5551872, 79.555067] }
-  ],
-  [normalizeName("Dharmapuri")]: [
-    { name: "Dharmapuri", coords: [12.1278, 78.1579] },
-    { name: "Harur", coords: [12.0624, 78.4908] },
-    { name: "Palacode", coords: [12.3041231, 78.0728817] },
-    { name: "Pennagaram", coords: [12.1125277, 77.8677247] },
-    { name: "Pappireddipatti", coords: [11.9138178, 78.3671093] }
-  ],
-  [normalizeName("Dindigul")]: [
-    { name: "Dindigul", coords: [10.3673, 77.9803] },
-    { name: "Palani", coords: [10.4492, 77.5218] },
-    { name: "Kodaikanal", coords: [10.2381, 77.4892] },
-    { name: "Nilakottai", coords: [10.2436869, 77.872736] },
-    { name: "Vedasandur", coords: [10.5990268, 78.0016771] },
-    { name: "Oddanchatram", coords: [10.4851135, 77.7460054] },
-    { name: "Natham", coords: [10.2689998, 78.2507119] }
-  ],
-  [normalizeName("Erode")]: [
-    { name: "Erode", coords: [11.341, 77.7172] },
-    { name: "Gobichettipalayam", coords: [11.4533, 77.4385] },
-    { name: "Bhavani", coords: [11.4429, 77.6797] },
-    { name: "Sathyamangalam", coords: [11.5523741, 77.2653758] },
-    { name: "Perundurai", coords: [11.2539029, 77.6288316] },
-    { name: "Anthiyur", coords: [11.7144457, 77.5679387] }
-  ],
-  [normalizeName("Kallakurichi")]: [
-    { name: "Kallakurichi", coords: [11.7381, 78.9625] },
-    { name: "Sankarapuram", coords: [11.8555913, 78.9857967] },
-    { name: "Chinnasalem", coords: [11.6354866, 78.8809891] },
-    { name: "Ulundurpet", coords: [11.6896, 79.2903] },
-    { name: "Kalvarayan Hills", coords: [10.9271, 78.4569] }
+  [normalizeName("Kanchipuram")]: [
+    { name: "Kanchipuram", coords: [12.8342, 79.7036] },
+    { name: "Sriperumbudur", coords: [12.9712, 79.9515] }
   ],
   [normalizeName("Kancheepuram")]: [
     { name: "Kanchipuram", coords: [12.8342, 79.7036] },
-    { name: "Sriperumbudur", coords: [12.9712, 79.9515] },
-    { name: "Kundrathur", coords: [12.9959652, 80.0975672] },
-    { name: "Uthiramerur", coords: [12.8055871, 79.708619] },
-    { name: "Walajabad", coords: [12.7918106, 79.828395] }
+    { name: "Sriperumbudur", coords: [12.9712, 79.9515] }
   ],
-  [normalizeName("Kanyakumari")]: [
-    { name: "Nagercoil", coords: [8.183, 77.4119] },
-    { name: "Kanyakumari", coords: [8.0883, 77.5385] },
-    { name: "Colachel", coords: [8.1752656, 77.2519232] },
-    { name: "Kuzhithurai", coords: [8.315526, 77.2068841] },
-    { name: "Padmanabhapuram", coords: [8.2522582, 77.3264881] },
-    { name: "Marthandam", coords: [8.3122492, 77.2473348] }
+  [normalizeName("Vellore")]: [
+    { name: "Vellore", coords: [12.9165, 79.1325] },
+    { name: "Katpadi", coords: [12.9818, 79.1396] },
+    { name: "Gudiyatham", coords: [12.9463, 78.8711] },
+    { name: "Pernambut", coords: [12.9378, 78.7186] }
   ],
-  [normalizeName("Karur")]: [
-    { name: "Karur", coords: [10.9601, 78.0766] },
-    { name: "Kulithalai", coords: [10.9333, 78.4167] },
-    { name: "Aravakurichi", coords: [10.8505925, 77.9260843] },
-    { name: "Krishnarayapuram", coords: [10.8358561, 78.351929] }
-  ],
-  [normalizeName("Krishnagiri")]: [
-    { name: "Krishnagiri", coords: [12.5186, 78.2138] },
-    { name: "Hosur", coords: [12.7409, 77.8253] },
-    { name: "Denkanikottai", coords: [12.5128321, 77.761123] },
-    { name: "Uthangarai", coords: [12.2752798, 78.4938829] },
-    { name: "Bargur", coords: [12.5425826, 78.3567173] }
-  ],
-  [normalizeName("Madurai")]: [
-    { name: "Madurai", coords: [9.9252, 78.1198] },
-    { name: "Melur", coords: [10.0447, 78.3377] },
-    { name: "Tirumangalam", coords: [9.8238241, 77.9862243] },
-    { name: "Usilampatti", coords: [9.9706372, 77.7939864] },
-    { name: "Vadipatti", coords: [10.0790057, 78.0360014] }
-  ],
-  [normalizeName("Mayiladuthurai")]: [
-    { name: "Mayiladuthurai", coords: [11.1018, 79.6522] },
-    { name: "Sirkazhi", coords: [11.2367, 79.7333] },
-    { name: "Kuthalam", coords: [11.0382345, 79.5915282] },
-    { name: "Tharangambadi", coords: [11.029929, 79.852196] }
-  ],
-  [normalizeName("Nagapattinam")]: [
-    { name: "Nagapattinam", coords: [10.7672, 79.8449] },
-    { name: "Velankanni", coords: [10.6868771, 79.8461807] },
-    { name: "Vedaranyam", coords: [10.3754, 79.7849] },
-    { name: "Kilvelur", coords: [10.689433, 79.7171793] }
-  ],
-  [normalizeName("Namakkal")]: [
-    { name: "Namakkal", coords: [11.2189, 78.1673] },
-    { name: "Tiruchengode", coords: [11.3789, 77.8937] },
-    { name: "Rasipuram", coords: [11.4537338, 78.1784576] },
-    { name: "Paramathi Velur", coords: [11.1864537, 77.95902] },
-    { name: "Kumarapalayam", coords: [11.3882525, 77.7778376] },
-    { name: "Sendamangalam", coords: [11.262066, 78.2461298] }
-  ],
-  [normalizeName("Nilgiris")]: [
-    { name: "Ooty", coords: [11.4102, 76.695] },
-    { name: "Coonoor", coords: [11.353, 76.7959] },
-    { name: "Kotagiri", coords: [11.4230431, 76.8658211] },
-    { name: "Gudalur", coords: [11.4992417, 76.4923903] },
-    { name: "Wellington", coords: [11.3560782, 76.7861039] }
-  ],
-  [normalizeName("Perambalur")]: [
-    { name: "Perambalur", coords: [11.2342, 78.8821] },
-    { name: "Kunnam", coords: [11.2942727, 79.0144972] },
-    { name: "Veppanthattai", coords: [11.3994219, 78.8868756] }
-  ],
-  [normalizeName("Pudukkottai")]: [
-    { name: "Pudukkottai", coords: [10.3797, 78.8208] },
-    { name: "Aranthangi", coords: [10.1652, 78.9959] },
-    { name: "Alangudi", coords: [10.3603703, 78.9778724] },
-    { name: "Illuppur", coords: [10.5136995, 78.6215544] },
-    { name: "Keeranur", coords: [10.5733857, 78.7842652] }
-  ],
-  [normalizeName("Ramanathapuram")]: [
-    { name: "Ramanathapuram", coords: [9.3639, 78.8394] },
-    { name: "Rameswaram", coords: [9.2876, 79.3129] },
-    { name: "Paramakudi", coords: [9.4867151, 78.6722718] },
-    { name: "Keelakarai", coords: [10.0308721, 79.1272366] },
-    { name: "Mandapam", coords: [9.282701, 79.1526713] }
+  [normalizeName("Tirupattur")]: [
+    { name: "Tirupattur", coords: [12.4918, 78.5676] },
+    { name: "Ambur", coords: [12.7909, 78.7166] },
+    { name: "Vaniyambadi", coords: [12.6845, 78.6186] }
   ],
   [normalizeName("Ranipet")]: [
     { name: "Ranipet", coords: [12.9272, 79.3328] },
     { name: "Arcot", coords: [12.8996, 79.3339] },
-    { name: "Arakkonam", coords: [13.085, 79.6677] },
-    { name: "Walajah", coords: [12.9254734, 79.3637892] },
-    { name: "Sholinghur", coords: [13.1151925, 79.4231084] }
+    { name: "Arakkonam", coords: [13.0850, 79.6677] }
+  ],
+  [normalizeName("Coimbatore")]: [
+    { name: "Coimbatore", coords: [11.0168, 76.9558] },
+    { name: "Pollachi", coords: [10.6589, 77.0091] },
+    { name: "Mettupalayam", coords: [11.3006, 76.9407] }
+  ],
+  [normalizeName("Madurai")]: [
+    { name: "Madurai", coords: [9.9252, 78.1198] },
+    { name: "Melur", coords: [10.0447, 78.3377] },
+    { name: "Thirumangalam", coords: [9.8236, 77.9894] }
   ],
   [normalizeName("Salem")]: [
-    { name: "Salem", coords: [11.6643, 78.146] },
+    { name: "Salem", coords: [11.6643, 78.1460] },
     { name: "Mettur", coords: [11.7862, 77.8012] },
-    { name: "Attur", coords: [11.5976, 78.5971] },
-    { name: "Edappadi", coords: [11.5838413, 77.8347612] },
-    { name: "Sankagiri", coords: [11.4760857, 77.8704045] },
-    { name: "Omalur", coords: [11.7428538, 78.0472667] },
-    { name: "Yercaud", coords: [11.7852074, 78.2075392] }
-  ],
-  [normalizeName("Sivaganga")]: [
-    { name: "Sivaganga", coords: [9.8486881, 78.4870461] },
-    { name: "Karaikudi", coords: [10.0734, 78.7733] },
-    { name: "Devakottai", coords: [9.9504, 78.813747] },
-    { name: "Tiruppathur", coords: [10.110361, 78.5930852] },
-    { name: "Manamadurai", coords: [9.8565738, 78.4857017] }
-  ],
-  [normalizeName("Tenkasi")]: [
-    { name: "Tenkasi", coords: [8.9593, 77.3139] },
-    { name: "Courtallam", coords: [8.9328828, 77.2714628] },
-    { name: "Sengottai", coords: [8.9872613, 77.242167] },
-    { name: "Kadayanallur", coords: [9.0842049, 77.3461957] },
-    { name: "Alangulam", coords: [8.859726, 77.4882218] }
-  ],
-  [normalizeName("Thanjavur")]: [
-    { name: "Thanjavur", coords: [10.787, 79.1378] },
-    { name: "Kumbakonam", coords: [10.9617, 79.3881] },
-    { name: "Pattukkottai", coords: [10.4162901, 79.3205603] },
-    { name: "Orathanadu", coords: [10.5752663, 79.2970596] },
-    { name: "Thiruvaiyaru", coords: [10.8797198, 79.1039298] }
-  ],
-  [normalizeName("Theni")]: [
-    { name: "Theni", coords: [10.0104, 77.4777] },
-    { name: "Periyakulam", coords: [10.1198663, 77.5467069] },
-    { name: "Bodinayakanur", coords: [10.0104, 77.3486] },
-    { name: "Cumbum", coords: [9.7394057, 77.2853013] },
-    { name: "Uthamapalayam", coords: [9.7662548, 77.3299043] }
-  ],
-  [normalizeName("Thoothukudi")]: [
-    { name: "Thoothukudi", coords: [8.7642, 78.1348] },
-    { name: "Kovilpatti", coords: [9.1779, 77.8687] },
-    { name: "Tiruchendur", coords: [8.495568, 78.123324] },
-    { name: "Kayalpattinam", coords: [8.5677868, 78.1003644] },
-    { name: "Ettayapuram", coords: [9.1806106, 78.0230534] }
+    { name: "Attur", coords: [11.5976, 78.5971] }
   ],
   [normalizeName("Tiruchirappalli")]: [
-    { name: "Tiruchirappalli", coords: [10.8071144, 78.6880939] },
+    { name: "Trichy", coords: [10.7905, 78.7047] },
     { name: "Srirangam", coords: [10.8622, 78.6882] },
-    { name: "Manapparai", coords: [10.6074, 78.4172] },
-    { name: "Thuraiyur", coords: [11.2302028, 78.5650695] },
-    { name: "Lalgudi", coords: [10.8754197, 78.8153244] },
-    { name: "Musiri", coords: [11.0488173, 78.5282293] }
+    { name: "Manapparai", coords: [10.6074, 78.4172] }
   ],
-  [normalizeName("Tirunelveli")]: [
-    { name: "Tirunelveli", coords: [8.7139, 77.7567] },
-    { name: "Ambasamudram", coords: [8.7027, 77.4565] },
-    { name: "Cheranmahadevi", coords: [8.6793185, 77.5617186] },
-    { name: "Nanguneri", coords: [8.4892568, 77.6596709] },
-    { name: "Thisayanvilai", coords: [8.3355721, 77.8668199] }
-  ],
-  [normalizeName("Tirupattur")]: [
-    { name: "Tirupattur", coords: [12.4918, 78.5676] },
-    { name: "Vaniyambadi", coords: [12.6845, 78.6186] },
-    { name: "Ambur", coords: [12.7909, 78.7166] },
-    { name: "Natrampalli", coords: [12.5937269, 78.5140944] }
+  [normalizeName("Tiruchirappalli (Trichy)")]: [
+    { name: "Trichy", coords: [10.7905, 78.7047] },
+    { name: "Srirangam", coords: [10.8622, 78.6882] },
+    { name: "Manapparai", coords: [10.6074, 78.4172] }
   ],
   [normalizeName("Tiruppur")]: [
     { name: "Tiruppur", coords: [11.1085, 77.3411] },
-    { name: "Dharapuram", coords: [10.7369082, 77.5260968] },
-    { name: "Udumalaipettai", coords: [10.5847, 77.2431] },
-    { name: "Avinashi", coords: [11.1900066, 77.2679915] },
     { name: "Palladam", coords: [10.9882, 77.2755] },
-    { name: "Kangeyam", coords: [10.9902543, 77.6282496] }
+    { name: "Udumalaipettai", coords: [10.5847, 77.2431] }
+  ],
+  [normalizeName("Erode")]: [
+    { name: "Erode", coords: [11.3410, 77.7172] },
+    { name: "Gobichettipalayam", coords: [11.4533, 77.4385] },
+    { name: "Bhavani", coords: [11.4429, 77.6797] }
+  ],
+  [normalizeName("Kanyakumari")]: [
+    { name: "Nagercoil", coords: [8.1830, 77.4119] },
+    { name: "Kanyakumari", coords: [8.0883, 77.5385] }
+  ],
+  [normalizeName("Kanniyakumari")]: [
+    { name: "Nagercoil", coords: [8.1830, 77.4119] },
+    { name: "Kanyakumari", coords: [8.0883, 77.5385] }
+  ],
+  [normalizeName("Ariyalur")]: [
+    { name: "Ariyalur", coords: [11.1401, 79.0747] },
+    { name: "Jayamkondam", coords: [11.2132, 79.3496] }
+  ],
+  [normalizeName("Cuddalore")]: [
+    { name: "Cuddalore", coords: [11.7480, 79.7714] },
+    { name: "Chidambaram", coords: [11.3984, 79.6954] },
+    { name: "Neyveli", coords: [11.6053, 79.4862] }
+  ],
+  [normalizeName("Dharmapuri")]: [
+    { name: "Dharmapuri", coords: [12.1278, 78.1579] },
+    { name: "Harur", coords: [12.0624, 78.4908] }
+  ],
+  [normalizeName("Dindigul")]: [
+    { name: "Dindigul", coords: [10.3673, 77.9803] },
+    { name: "Palani", coords: [10.4492, 77.5218] },
+    { name: "Kodaikanal", coords: [10.2381, 77.4892] }
+  ],
+  [normalizeName("Kallakurichi")]: [
+    { name: "Kallakurichi", coords: [11.7381, 78.9625] },
+    { name: "Ulundurpet", coords: [11.6896, 79.2903] }
+  ],
+  [normalizeName("Karur")]: [
+    { name: "Karur", coords: [10.9601, 78.0766] },
+    { name: "Kulithalai", coords: [10.9333, 78.4167] }
+  ],
+  [normalizeName("Krishnagiri")]: [
+    { name: "Krishnagiri", coords: [12.5186, 78.2138] },
+    { name: "Hosur", coords: [12.7409, 77.8253] }
+  ],
+  [normalizeName("Mayiladuthurai")]: [
+    { name: "Mayiladuthurai", coords: [11.1018, 79.6522] },
+    { name: "Sirkazhi", coords: [11.2367, 79.7333] }
+  ],
+  [normalizeName("Nagapattinam")]: [
+    { name: "Nagapattinam", coords: [10.7672, 79.8449] },
+    { name: "Vedaranyam", coords: [10.3754, 79.7849] }
+  ],
+  [normalizeName("Namakkal")]: [
+    { name: "Namakkal", coords: [11.2189, 78.1673] },
+    { name: "Tiruchengode", coords: [11.3789, 77.8937] }
+  ],
+  [normalizeName("Nilgiris")]: [
+    { name: "Ooty", coords: [11.4102, 76.6950] },
+    { name: "Coonoor", coords: [11.3530, 76.7959] }
+  ],
+  [normalizeName("Perambalur")]: [
+    { name: "Perambalur", coords: [11.2342, 78.8821] }
+  ],
+  [normalizeName("Pudukkottai")]: [
+    { name: "Pudukkottai", coords: [10.3797, 78.8208] },
+    { name: "Aranthangi", coords: [10.1652, 78.9959] }
+  ],
+  [normalizeName("Ramanathapuram")]: [
+    { name: "Ramanathapuram", coords: [9.3639, 78.8394] },
+    { name: "Rameswaram", coords: [9.2876, 79.3129] }
+  ],
+  [normalizeName("Sivagangai")]: [
+    { name: "Sivagangai", coords: [9.8433, 78.4809] },
+    { name: "Karaikudi", coords: [10.0734, 78.7733] }
+  ],
+  [normalizeName("Tenkasi")]: [
+    { name: "Tenkasi", coords: [8.9593, 77.3139] },
+    { name: "Sankarankovil", coords: [9.1725, 77.5332] }
+  ],
+  [normalizeName("Thanjavur")]: [
+    { name: "Thanjavur", coords: [10.7870, 79.1378] },
+    { name: "Kumbakonam", coords: [10.9617, 79.3881] }
+  ],
+  [normalizeName("Theni")]: [
+    { name: "Theni", coords: [10.0104, 77.4777] },
+    { name: "Bodinayakanur", coords: [10.0104, 77.3486] }
+  ],
+  [normalizeName("Thoothukudi")]: [
+    { name: "Thoothukudi", coords: [8.7642, 78.1348] },
+    { name: "Kovilpatti", coords: [9.1779, 77.8687] }
+  ],
+  [normalizeName("Tirunelveli")]: [
+    { name: "Tirunelveli", coords: [8.7139, 77.7567] },
+    { name: "Ambasamudram", coords: [8.7027, 77.4565] }
   ],
   [normalizeName("Tiruvallur")]: [
     { name: "Tiruvallur", coords: [13.1422, 79.9077] },
-    { name: "Avadi", coords: [13.1187, 80.1047] },
-    { name: "Ponneri", coords: [13.3710903, 80.2428419] },
-    { name: "Tiruttani", coords: [13.1775621, 79.6115074] },
-    { name: "Gummidipoondi", coords: [13.4308848, 80.0821379] },
-    { name: "Poonamallee", coords: [13.0492031, 80.1010677] }
+    { name: "Avadi", coords: [13.1187, 80.1047] }
   ],
   [normalizeName("Tiruvannamalai")]: [
     { name: "Tiruvannamalai", coords: [12.2253, 79.0747] },
-    { name: "Arani", coords: [12.6711, 79.2842] },
-    { name: "Chengam", coords: [12.3502311, 78.8767964] },
-    { name: "Vandavasi", coords: [12.5056013, 79.6049607] },
-    { name: "Polur", coords: [12.5937689, 79.1385342] },
-    { name: "Cheyyar", coords: [12.6563891, 79.5404577] }
+    { name: "Arani", coords: [12.6711, 79.2842] }
   ],
   [normalizeName("Tiruvarur")]: [
     { name: "Tiruvarur", coords: [10.7716, 79.6385] },
-    { name: "Mannargudi", coords: [10.6657, 79.4449] },
-    { name: "Thiruthuraipoondi", coords: [10.5317373, 79.6400749] },
-    { name: "Needamangalam", coords: [10.7249596, 79.4700426] },
-    { name: "Koothanallur", coords: [10.7187756, 79.5237309] }
-  ],
-  [normalizeName("Vellore")]: [
-    { name: "Vellore", coords: [12.9165, 79.1325] },
-    { name: "Gudiyatham", coords: [12.9463, 78.8711] },
-    { name: "Pernambut", coords: [12.9378, 78.7186] },
-    { name: "Katpadi", coords: [12.9818, 79.1396] }
+    { name: "Mannargudi", coords: [10.6657, 79.4449] }
   ],
   [normalizeName("Viluppuram")]: [
     { name: "Viluppuram", coords: [11.9401, 79.4861] },
-    { name: "Tindivanam", coords: [12.2359, 79.65] },
-    { name: "Gingee", coords: [12.2544154, 79.4157756] },
-    { name: "Kottakuppam", coords: [11.9676624, 79.8378289] },
-    { name: "Marakkanam", coords: [12.1959326, 79.9441819] }
+    { name: "Tindivanam", coords: [12.2359, 79.6500] }
   ],
   [normalizeName("Virudhunagar")]: [
-    { name: "Virudhunagar", coords: [9.5872, 77.957] },
-    { name: "Sivakasi", coords: [9.4533, 77.8016] },
-    { name: "Rajapalayam", coords: [9.4031584, 77.5182644] },
-    { name: "Srivilliputtur", coords: [9.4977534, 77.6450726] },
-    { name: "Sattur", coords: [9.322676, 77.9418465] },
-    { name: "Aruppukottai", coords: [9.581648, 77.925947] }
+    { name: "Virudhunagar", coords: [9.5872, 77.9570] },
+    { name: "Sivakasi", coords: [9.4533, 77.8016] }
   ]
 };
 
@@ -435,13 +343,517 @@ function MapEventsHandler({ onMapClick }: { onMapClick: () => void }) {
   return null;
 }
 
+// ── Samsung One UI segmented picker ──
+function SegmentPicker({ label, options, value, onChange }: {
+  label: string;
+  options: { label: string; value: string }[];
+  value: string; onChange: (v: string) => void;
+}) {
+  return (
+    <div style={{ borderBottom: '1px solid #e5e5e5', paddingBottom: '1.1rem' }}>
+      <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#7a7a7a', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: '0.7rem' }}>{label}</div>
+      <div style={{ display: 'flex', background: '#e4e4e4', borderRadius: '12px', padding: '3px', gap: '2px' }}>
+        {[{ label: 'Any', value: '' }, ...options].map(opt => {
+          const active = value === opt.value;
+          return (
+            <button
+              key={opt.value}
+              onClick={() => onChange(opt.value)}
+              style={{
+                flex: 1,
+                padding: '0.45rem 0.2rem',
+                borderRadius: '9px',
+                border: 'none',
+                background: active ? '#f5f5f5' : 'transparent',
+                color: active ? '#101010' : '#6b6b6b',
+                fontSize: '0.76rem',
+                fontWeight: active ? 700 : 500,
+                fontFamily: "'Inter', system-ui, sans-serif",
+                cursor: 'pointer',
+                transition: 'background 0.15s ease, color 0.15s ease',
+                boxShadow: active ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
+                letterSpacing: '-0.01em',
+                whiteSpace: 'nowrap',
+                minWidth: 0,
+              }}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Samsung One UI range row ──
+function RangeSection({ label, unit, minVal, setMin, maxVal, setMax }: {
+  label: string; unit: string;
+  minVal: string; setMin: (v: string) => void;
+  maxVal: string; setMax: (v: string) => void;
+}) {
+  const inputBase: React.CSSProperties = {
+    flex: 1, height: '46px',
+    background: '#e4e4e4',
+    border: '1.5px solid transparent',
+    borderRadius: '12px',
+    padding: '0 0.9rem',
+    fontSize: '0.88rem',
+    fontFamily: "'Inter', system-ui, sans-serif",
+    color: '#101010',
+    outline: 'none',
+    boxSizing: 'border-box',
+    width: '100%',
+    letterSpacing: '-0.01em',
+    transition: 'border-color 0.15s ease',
+  };
+  return (
+    <div style={{ borderBottom: '1px solid #e5e5e5', paddingBottom: '1.1rem' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem', marginBottom: '0.7rem' }}>
+        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#7a7a7a', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: "'Inter', system-ui, sans-serif" }}>{label}</span>
+        <span style={{ fontSize: '0.65rem', color: '#9a9a9a', fontFamily: "'Inter', system-ui, sans-serif" }}>{unit}</span>
+      </div>
+      <div style={{ display: 'flex', gap: '0.55rem', alignItems: 'center' }}>
+        <input
+          type="number"
+          placeholder="Min"
+          value={minVal}
+          onChange={e => setMin(e.target.value)}
+          onFocus={e => (e.target as HTMLInputElement).style.borderColor = '#101010'}
+          onBlur={e => (e.target as HTMLInputElement).style.borderColor = 'transparent'}
+          style={inputBase}
+        />
+        <div style={{ width: '12px', height: '1.5px', background: '#b8b8b8', flexShrink: 0 }} />
+        <input
+          type="number"
+          placeholder="Max"
+          value={maxVal}
+          onChange={e => setMax(e.target.value)}
+          onFocus={e => (e.target as HTMLInputElement).style.borderColor = '#101010'}
+          onBlur={e => (e.target as HTMLInputElement).style.borderColor = 'transparent'}
+          style={inputBase}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ── Shared filter inputs renderer ──
+function filterInputs({ minPrice, setMinPrice, maxPrice, setMaxPrice, minArea, setMinArea, maxArea, setMaxArea, waterSource, setWaterSource, roadAccess, setRoadAccess, soilType, setSoilType, compact = false }: {
+  minPrice: string; setMinPrice: (v: string) => void;
+  maxPrice: string; setMaxPrice: (v: string) => void;
+  minArea: string; setMinArea: (v: string) => void;
+  maxArea: string; setMaxArea: (v: string) => void;
+  waterSource: string; setWaterSource: (v: string) => void;
+  roadAccess: string; setRoadAccess: (v: string) => void;
+  soilType: string; setSoilType: (v: string) => void;
+  compact?: boolean;
+}) {
+  if (compact) {
+    const h = '30px'; const fs = '0.74rem'; const lfs = '0.7rem';
+    const labelStyle: React.CSSProperties = { fontSize: lfs, fontWeight: 700, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.02em', display: 'block', marginBottom: '0.25rem' };
+    const inputStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box', height: h, fontSize: fs, padding: '0 0.6rem', border: '1px solid #e5e7eb', borderRadius: '8px', outline: 'none', fontFamily: "'Inter', system-ui, sans-serif", background: '#f9fafb', color: '#111827' };
+    const selectStyle: React.CSSProperties = { ...inputStyle, cursor: 'pointer' };
+    return (
+      <>
+        <div><label style={labelStyle}>Price (₹)</label><div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}><input type="number" placeholder="Min" value={minPrice} onChange={e => setMinPrice(e.target.value)} style={inputStyle} /><span style={{ color: '#9ca3af', fontSize: lfs }}>–</span><input type="number" placeholder="Max" value={maxPrice} onChange={e => setMaxPrice(e.target.value)} style={inputStyle} /></div></div>
+        <div><label style={labelStyle}>Area (Cent/Sq ft)</label><div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}><input type="number" placeholder="Min" value={minArea} onChange={e => setMinArea(e.target.value)} style={inputStyle} /><span style={{ color: '#9ca3af', fontSize: lfs }}>–</span><input type="number" placeholder="Max" value={maxArea} onChange={e => setMaxArea(e.target.value)} style={inputStyle} /></div></div>
+        <div><label style={labelStyle}>Water Source</label><select value={waterSource} onChange={e => setWaterSource(e.target.value)} style={selectStyle}><option value="">Any</option><option value="Open Well">Open Well</option><option value="Borewell">Borewell</option><option value="River">River</option><option value="Canal">Canal</option><option value="None">None</option></select></div>
+        <div><label style={labelStyle}>Road Access</label><select value={roadAccess} onChange={e => setRoadAccess(e.target.value)} style={selectStyle}><option value="">Any</option><option value="Tar Road">Tar Road</option><option value="Gravel Road">Gravel Road</option><option value="Dirt Road">Dirt Road</option><option value="No Road">No Road</option></select></div>
+        <div><label style={labelStyle}>Soil Type</label><select value={soilType} onChange={e => setSoilType(e.target.value)} style={selectStyle}><option value="">Any</option><option value="Red Soil">Red Soil</option><option value="Black Soil">Black Soil</option><option value="Clay">Clay</option><option value="Sandy">Sandy</option><option value="Alluvial">Alluvial</option></select></div>
+      </>
+    );
+  }
+  return (
+    <>
+      <RangeSection label="Price" unit="₹" minVal={minPrice} setMin={setMinPrice} maxVal={maxPrice} setMax={setMaxPrice} />
+      <RangeSection label="Area" unit="Cent / Sq ft" minVal={minArea} setMin={setMinArea} maxVal={maxArea} setMax={setMaxArea} />
+      <SegmentPicker label="Water Source" value={waterSource} onChange={setWaterSource} options={[
+        { label: 'Open Well', value: 'Open Well' },
+        { label: 'Borewell', value: 'Borewell' },
+        { label: 'River', value: 'River' },
+        { label: 'Canal', value: 'Canal' },
+        { label: 'None', value: 'None' },
+      ]} />
+      <SegmentPicker label="Road Access" value={roadAccess} onChange={setRoadAccess} options={[
+        { label: 'Tar Road', value: 'Tar Road' },
+        { label: 'Gravel', value: 'Gravel Road' },
+        { label: 'Dirt Road', value: 'Dirt Road' },
+        { label: 'No Road', value: 'No Road' },
+      ]} />
+      <SegmentPicker label="Soil Type" value={soilType} onChange={setSoilType} options={[
+        { label: 'Red', value: 'Red Soil' },
+        { label: 'Black', value: 'Black Soil' },
+        { label: 'Clay', value: 'Clay' },
+        { label: 'Sandy', value: 'Sandy' },
+        { label: 'Alluvial', value: 'Alluvial' },
+      ]} />
+    </>
+  );
+}
+
+// ── Draggable Mobile Filter Bottom Sheet ──
+function FilterSheet({ onClose, minPrice, setMinPrice, maxPrice, setMaxPrice, minArea, setMinArea, maxArea, setMaxArea, waterSource, setWaterSource, roadAccess, setRoadAccess, soilType, setSoilType }: {
+  onClose: () => void;
+  minPrice: string; setMinPrice: (v: string) => void;
+  maxPrice: string; setMaxPrice: (v: string) => void;
+  minArea: string; setMinArea: (v: string) => void;
+  maxArea: string; setMaxArea: (v: string) => void;
+  waterSource: string; setWaterSource: (v: string) => void;
+  roadAccess: string; setRoadAccess: (v: string) => void;
+  soilType: string; setSoilType: (v: string) => void;
+}) {
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const dragStartY = useRef(0);
+  const dragCurrentY = useRef(0);
+  const isDragging = useRef(false);
+
+  const onDown = (e: React.PointerEvent) => {
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    dragStartY.current = e.clientY;
+    dragCurrentY.current = 0;
+    isDragging.current = true;
+  };
+  const onMove = (e: React.PointerEvent) => {
+    if (!isDragging.current) return;
+    const dy = e.clientY - dragStartY.current;
+    dragCurrentY.current = dy;
+    if (sheetRef.current && dy > 0) sheetRef.current.style.transform = `translateY(${dy}px)`;
+  };
+  const onUp = (e: React.PointerEvent) => {
+    if (!isDragging.current) return;
+    isDragging.current = false;
+    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
+    if (dragCurrentY.current > 100) { onClose(); }
+    else if (sheetRef.current) sheetRef.current.style.transform = '';
+    dragCurrentY.current = 0;
+  };
+
+  const activeCount = [minPrice, maxPrice, minArea, maxArea, waterSource, roadAccess, soilType].filter(Boolean).length;
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 999999, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.42)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }} onClick={onClose} />
+      <div ref={sheetRef} style={{ position: 'relative', background: '#f5f5f5', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 -4px 32px rgba(0,0,0,0.15)', animation: 'slideUp 0.26s cubic-bezier(0.16, 1, 0.3, 1)', transition: 'transform 0.12s ease' }}>
+        {/* Handle */}
+        <div onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} style={{ display: 'flex', justifyContent: 'center', padding: '0.75rem 0 0.35rem', flexShrink: 0, cursor: 'grab', touchAction: 'none', userSelect: 'none' }}>
+          <div style={{ width: '36px', height: '4px', borderRadius: '99px', background: '#d0d0d0' }} />
+        </div>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 1.25rem 0.9rem', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+            <span style={{ fontSize: '1.05rem', fontWeight: 700, color: '#101010', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '-0.03em' }}>Filter</span>
+            {activeCount > 0 && (
+              <span style={{ background: '#101010', color: '#ffffff', borderRadius: '5px', padding: '1px 7px', fontSize: '0.68rem', fontWeight: 700, fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.02em' }}>{activeCount}</span>
+            )}
+          </div>
+          <button
+            onClick={() => { setMinPrice(''); setMaxPrice(''); setMinArea(''); setMaxArea(''); setWaterSource(''); setRoadAccess(''); setSoilType(''); }}
+            style={{ background: 'none', border: 'none', fontSize: '0.78rem', fontWeight: 600, color: '#7a7a7a', cursor: 'pointer', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '-0.01em', padding: '4px 0' }}
+          >
+            Reset all
+          </button>
+        </div>
+        <div style={{ height: '1px', background: '#e5e5e5', flexShrink: 0 }} />
+        {/* Content */}
+        <div
+          style={{ overflowY: 'auto', padding: '1rem 1.25rem 0', flex: 1, display: 'flex', flexDirection: 'column', gap: '1.1rem' }}
+          onWheel={e => e.stopPropagation()}
+          onTouchMove={e => e.stopPropagation()}
+        >
+          {filterInputs({ minPrice, setMinPrice, maxPrice, setMaxPrice, minArea, setMinArea, maxArea, setMaxArea, waterSource, setWaterSource, roadAccess, setRoadAccess, soilType, setSoilType })}
+          <div style={{ height: '0.25rem' }} />
+        </div>
+        {/* Footer */}
+        <div style={{ padding: '0.85rem 1.25rem 2rem', flexShrink: 0 }}>
+          <button
+            onClick={onClose}
+            style={{ width: '100%', height: '52px', background: '#101010', border: 'none', borderRadius: '14px', fontSize: '0.95rem', fontWeight: 700, color: '#ffffff', cursor: 'pointer', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '-0.02em' }}
+          >
+            {activeCount > 0 ? `Show results` : 'Apply'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Custom Select Component for Samsung UI aesthetics
+function CustomSelect({ 
+  value, 
+  onChange, 
+  options, 
+  placeholder, 
+  disabled = false,
+}: { 
+  value: string; 
+  onChange: (val: string) => void; 
+  options: { label: string; value: string }[]; 
+  placeholder: string; 
+  disabled?: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const sheetDragStartY = useRef(0);
+  const sheetDragCurrentY = useRef(0);
+  const sheetIsDragging = useRef(false);
+
+  const onSheetPointerDown = (e: React.PointerEvent) => {
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    sheetDragStartY.current = e.clientY;
+    sheetDragCurrentY.current = 0;
+    sheetIsDragging.current = true;
+  };
+  const onSheetPointerMove = (e: React.PointerEvent) => {
+    if (!sheetIsDragging.current) return;
+    const dy = e.clientY - sheetDragStartY.current;
+    sheetDragCurrentY.current = dy;
+    if (sheetRef.current && dy > 0) sheetRef.current.style.transform = `translateY(${dy}px)`;
+  };
+  const onSheetPointerUp = (e: React.PointerEvent) => {
+    if (!sheetIsDragging.current) return;
+    sheetIsDragging.current = false;
+    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
+    if (sheetDragCurrentY.current > 100) { setIsOpen(false); setSearch(''); }
+    else if (sheetRef.current) sheetRef.current.style.transform = '';
+    sheetDragCurrentY.current = 0;
+  };
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
+  const isMobileDevice = window.innerWidth <= 768;
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (containerRef.current && !containerRef.current.contains(target) && !target.closest('.custom-select-menu')) {
+        setIsOpen(false);
+        setSearch('');
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) setSearch('');
+  }, [isOpen]);
+
+  const openMenu = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isMobileDevice && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      setCoords({ top: rect.bottom + 6, left: rect.left, width: rect.width });
+    }
+    setIsOpen(!isOpen);
+  };
+
+  const selectedLabel = value ? options.find(o => o.value === value)?.label : placeholder;
+  const isActive = !!value;
+  const filtered = options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()));
+
+  const optionsList = (
+    <>
+      {filtered.length === 0 && (
+        <div style={{ padding: '1rem', fontSize: '0.82rem', color: '#9ca3af', textAlign: 'center' }}>No results</div>
+      )}
+      {filtered.map((opt) => {
+        const isSelected = opt.value === value;
+        return (
+          <div
+            key={opt.value}
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange(opt.value);
+              setIsOpen(false);
+              setSearch('');
+            }}
+            style={{
+              padding: '0.75rem 1rem',
+              fontSize: '0.88rem',
+              fontWeight: isSelected ? 700 : 500,
+              fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+              color: isSelected ? '#101010' : '#374151',
+              background: isSelected ? 'rgba(0,0,0,0.05)' : 'transparent',
+              borderRadius: '12px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              transition: 'background 0.12s ease',
+              flexShrink: 0,
+            }}
+            onMouseEnter={(e) => { if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = 'rgba(0,0,0,0.03)'; }}
+            onMouseLeave={(e) => { if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
+          >
+            <span style={{ pointerEvents: 'none' }}>{opt.label}</span>
+            {isSelected && (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#101010" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ pointerEvents: 'none', flexShrink: 0 }}>
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            )}
+          </div>
+        );
+      })}
+    </>
+  );
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', flex: isMobileDevice ? 1 : '0 0 auto', width: isMobileDevice ? undefined : (placeholder === 'District' ? '160px' : placeholder === 'City' ? '160px' : '170px'), minWidth: 0 }}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={openMenu}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          width: '100%',
+          height: '36px',
+          padding: '0 0.85rem',
+          background: isActive ? '#ffffff' : '#f9f9f9',
+          border: isActive ? '1px solid #101010' : '1px solid transparent',
+          borderRadius: '24px',
+          fontSize: '0.82rem',
+          fontWeight: isActive ? 700 : 600,
+          fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+          letterSpacing: '-0.01em',
+          color: isActive ? '#101010' : '#4b5563',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          opacity: disabled ? 0.6 : 1,
+          boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.06)' : 'inset 0 1px 3px rgba(0,0,0,0.04)',
+          outline: 'none',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)'
+        }}
+      >
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', pointerEvents: 'none' }}>{selectedLabel}</span>
+        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginLeft: '4px', pointerEvents: 'none', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)' }}>
+          <polyline points="5 8 10 13 15 8" />
+        </svg>
+      </button>
+
+      {isOpen && !disabled && createPortal(
+        isMobileDevice ? (
+          /* ── MOBILE: Full bottom sheet ── */
+          <div
+            className="custom-select-menu"
+            style={{ position: 'fixed', inset: 0, zIndex: 999999, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}
+            onClick={(e) => { if (e.target === e.currentTarget) { setIsOpen(false); setSearch(''); } }}
+          >
+            {/* Backdrop */}
+            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }} />
+            {/* Sheet */}
+            <div
+              ref={sheetRef}
+              onWheel={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              style={{
+                position: 'relative',
+                background: '#ffffff',
+                borderTopLeftRadius: '24px',
+                borderTopRightRadius: '24px',
+                maxHeight: '82vh',
+                display: 'flex',
+                flexDirection: 'column',
+                boxShadow: '0 -8px 40px rgba(0,0,0,0.18)',
+                animation: 'slideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+                transition: 'transform 0.1s ease',
+              }}
+            >
+              {/* Draggable Handle */}
+              <div
+                onPointerDown={onSheetPointerDown}
+                onPointerMove={onSheetPointerMove}
+                onPointerUp={onSheetPointerUp}
+                style={{ display: 'flex', justifyContent: 'center', paddingTop: '0.75rem', paddingBottom: '0.5rem', flexShrink: 0, cursor: 'grab', touchAction: 'none', userSelect: 'none' }}
+              >
+                <div style={{ width: '40px', height: '4px', borderRadius: '99px', background: '#d1d5db' }} />
+              </div>
+              {/* Title + close */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 1.25rem 0.75rem', flexShrink: 0 }}>
+                <span style={{ fontSize: '1rem', fontWeight: 800, color: '#101010', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '-0.03em' }}>{placeholder}</span>
+                <button onClick={() => { setIsOpen(false); setSearch(''); }} style={{ background: 'rgba(0,0,0,0.06)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+              {/* Search */}
+              <div style={{ padding: '0 1rem 0.75rem', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', background: '#f4f4f4', borderRadius: '14px', padding: '0 0.85rem', gap: '0.5rem', height: '42px' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <input
+                    autoFocus
+                    type="text"
+                    placeholder={`Search ${placeholder.toLowerCase()}…`}
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    style={{ background: 'transparent', border: 'none', outline: 'none', flex: 1, fontSize: '0.88rem', color: '#101010', fontFamily: "'Inter', system-ui, sans-serif" }}
+                  />
+                  {search && (
+                    <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#9ca3af' }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+              {/* Options list */}
+              <div style={{ overflowY: 'auto', padding: '0 0.65rem 1.5rem', flex: 1 }}>
+                {optionsList}
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* ── DESKTOP: Floating dropdown ── */
+          <div
+            className="custom-select-menu"
+            onWheel={(e) => { e.stopPropagation(); }}
+            onTouchMove={(e) => { e.stopPropagation(); }}
+            style={{
+              position: 'fixed',
+              top: `${coords.top}px`,
+              left: `${coords.left}px`,
+              width: `${Math.max(coords.width, 180)}px`,
+              background: 'rgba(255, 255, 255, 0.95)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              borderRadius: '16px',
+              boxShadow: '0 12px 32px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.06)',
+              border: '1px solid rgba(255,255,255,0.4)',
+              zIndex: 999999,
+              maxHeight: '400px',
+              overflowY: 'auto',
+              padding: '0.35rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '2px',
+              animation: 'fadeInUp 0.15s cubic-bezier(0.25, 0.8, 0.25, 1)',
+              pointerEvents: 'auto',
+              touchAction: 'pan-y'
+            }}
+          >
+            <style>{`
+              .custom-select-menu::-webkit-scrollbar { width: 6px !important; display: block !important; }
+              .custom-select-menu::-webkit-scrollbar-track { background: transparent !important; }
+              .custom-select-menu::-webkit-scrollbar-thumb { background: #d4cfc8 !important; border-radius: 99px !important; }
+              .custom-select-menu::-webkit-scrollbar-thumb:hover { background: #b8b2a9 !important; }
+            `}</style>
+            {optionsList}
+          </div>
+        ),
+        document.body
+      )}
+    </div>
+  );
+}
+
 export default function MapSearch() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
-  const [geoJsonData, setGeoJsonData] = useState<any | null>(null);
-  const [mobileView, setMobileView] = useState<'map' | 'list'>('map');
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
-  const { animationSetting } = useSettings();
+  const [geoJsonData, setGeoJsonData] = useState<any | null>(OFFLINE_GEOJSON);
 
   // Wishlist states
   const [wishlist, setWishlist] = useState<string[]>([]);
@@ -466,6 +878,179 @@ export default function MapSearch() {
     } catch { /* silent */ }
     finally { setTogglingId(null); }
   };
+  const renderSamsungDropdowns = () => (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.5rem',
+      width: '100%',
+      boxSizing: 'border-box',
+      flexShrink: 0,
+      overflowX: 'auto',
+      scrollbarWidth: 'none',
+      msOverflowStyle: 'none',
+      padding: '0.15rem 0'
+    }}>
+      {/* Refresh / Reset Filters Button (Left) */}
+      <div style={{ position: 'relative', display: 'inline-block', flexShrink: 0 }}>
+        <button
+          onClick={() => {
+            setSelectedDistrict(null);
+            setSelectedCity(null);
+            setFilterType('');
+            setMinPrice(''); setMaxPrice('');
+            setMinArea(''); setMaxArea('');
+            setWaterSource(''); setRoadAccess(''); setSoilType('');
+          }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            background: '#ffffff',
+            height: '36px',
+            width: '36px',
+            minWidth: '36px',
+            padding: 0,
+            boxSizing: 'border-box',
+            borderRadius: '50%',
+            border: '1px solid rgba(0,0,0,0.06)',
+            color: '#101010',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+            transition: 'background 0.2s'
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+            <path d="M3 3v5h5" />
+          </svg>
+        </button>
+      </div>
+
+      {/* District Select */}
+      <CustomSelect
+        value={selectedDistrict || ''}
+        onChange={(val) => handleDistrictChange(val)}
+        placeholder="District"
+        options={TAMIL_NADU_DISTRICTS.map(d => ({ label: d, value: d }))}
+      />
+
+      {/* City Select */}
+      <CustomSelect
+        value={selectedCity || ''}
+        onChange={(val) => handleCityChange(val)}
+        placeholder="City"
+        options={selectedDistrict ? sortedTaluksList.map(name => ({ label: name, value: name })) : []}
+        disabled={!selectedDistrict}
+      />
+
+      {/* Plot Type Select */}
+      <CustomSelect
+        value={filterType}
+        onChange={(val) => setFilterType(val)}
+        placeholder="Type"
+        options={[
+          { label: 'Agricultural Land', value: 'Agricultural Land' },
+          { label: 'Flat Plot', value: 'Flat Plot' },
+          { label: 'Farm Land', value: 'Farm Land' },
+          { label: 'Residential Plot', value: 'Residential Plot' },
+          { label: 'Commercial Plot', value: 'Commercial Plot' }
+        ]}
+      />
+
+      {/* Filters popup toggler (Right) - Samsung sliders icon */}
+      <div className="filters-popup-anchor" style={{ position: 'relative', display: 'inline-block', flexShrink: 0 }}>
+        <button
+          onClick={handleFiltersButtonClick}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            background: activeFiltersCount > 0 ? '#101010' : '#ffffff',
+            color: activeFiltersCount > 0 ? '#ffffff' : '#101010',
+            height: '36px',
+            width: '36px',
+            minWidth: '36px',
+            padding: 0,
+            boxSizing: 'border-box',
+            borderRadius: '50%',
+            border: activeFiltersCount > 0 ? '1.5px solid transparent' : '1px solid rgba(0,0,0,0.06)',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+            transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)'
+          }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" />
+          </svg>
+          {activeFiltersCount > 0 && (
+            <span style={{
+              position: 'absolute',
+              top: '-4px',
+              right: '-4px',
+              background: '#ef4444', color: '#ffffff', borderRadius: '50%',
+              width: '14px', height: '14px', fontSize: '0.58rem',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800,
+              boxShadow: '0 2px 4px rgba(239, 68, 68, 0.3)'
+            }}>
+              {activeFiltersCount}
+            </span>
+          )}
+        </button>
+
+        {showFiltersPopup && (
+          isMobile ? (
+            createPortal(
+              <FilterSheet
+                onClose={() => setShowFiltersPopup(false)}
+                minPrice={minPrice} setMinPrice={setMinPrice}
+                maxPrice={maxPrice} setMaxPrice={setMaxPrice}
+                minArea={minArea} setMinArea={setMinArea}
+                maxArea={maxArea} setMaxArea={setMaxArea}
+                waterSource={waterSource} setWaterSource={setWaterSource}
+                roadAccess={roadAccess} setRoadAccess={setRoadAccess}
+                soilType={soilType} setSoilType={setSoilType}
+              />,
+              document.body
+            )
+          ) : (
+            filterButtonCoords && createPortal(
+              <>
+                <div onClick={() => setShowFiltersPopup(false)} style={{ position: 'fixed', inset: 0, zIndex: 999998 }} />
+                <div style={{
+                  position: 'fixed',
+                  top: `${filterButtonCoords.top + 8}px`,
+                  left: `${filterButtonCoords.right - 260}px`,
+                  width: '260px',
+                  background: '#ffffff',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '16px',
+                  boxShadow: '0 12px 32px rgba(0,0,0,0.15)',
+                  padding: '1.25rem',
+                  zIndex: 999999,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.85rem',
+                  maxHeight: '440px',
+                  overflowY: 'auto',
+                  boxSizing: 'border-box'
+                }}>
+                  <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: '#111827', fontFamily: "'Poppins', sans-serif" }}>Filters</h4>
+                  {filterInputs({ minPrice, setMinPrice, maxPrice, setMaxPrice, minArea, setMinArea, maxArea, setMaxArea, waterSource, setWaterSource, roadAccess, setRoadAccess, soilType, setSoilType, compact: true })}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.35rem', borderTop: '1px solid #f3f4f6', paddingTop: '0.75rem' }}>
+                    <button onClick={() => { setMinPrice(''); setMaxPrice(''); setMinArea(''); setMaxArea(''); setWaterSource(''); setRoadAccess(''); setSoilType(''); }} style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Reset All</button>
+                    <button onClick={() => setShowFiltersPopup(false)} style={{ background: '#101010', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '5px 14px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Apply</button>
+                  </div>
+                </div>
+              </>,
+              document.body
+            )
+          )
+        )}
+      </div>
+    </div>
+  );
+
 
 
   // Map viewport states
@@ -476,19 +1061,101 @@ export default function MapSearch() {
   // Active district and city filters
   const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
+
   
 
   
   // Other Filter States
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchTerm = searchParams.get('search') || '';
+  const setSearchTerm = (val: string) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (val) newParams.set('search', val);
+    else newParams.delete('search');
+    setSearchParams(newParams);
+  };
+
+    const [filterType, setFilterType] = useState('');
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
+  const [minArea, setMinArea] = useState('');
+  const [maxArea, setMaxArea] = useState('');
+  const [soilType, setSoilType] = useState('');
+  const [waterSource, setWaterSource] = useState('');
+  const [roadAccess, setRoadAccess] = useState('');
+
+  // Mobile layout and popup states
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [showFiltersPopup, setShowFiltersPopup] = useState(false);
+  const [filterButtonCoords, setFilterButtonCoords] = useState<{ top: number; right: number } | null>(null);
+  const [mobileActiveTab, setMobileActiveTab] = useState<'map' | 'lands'>('map');
+  const [drawerState, setDrawerState] = useState<'collapsed' | 'expanded'>('collapsed');
+
+  const handleFiltersButtonClick = (e: React.MouseEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setFilterButtonCoords({
+      top: rect.bottom,
+      right: rect.right
+    });
+    setShowFiltersPopup(prev => !prev);
+  };
   
-  const [visibleCount, setVisibleCount] = useState(12);
+  // Real-time touch drag states using dragY state to prevent tap glitching
+  const [dragY, setDragY] = useState<number | null>(null);
+  const isDraggingActiveRef = useRef(false);
+  const startYRef = useRef(0);
+  const drawerRef = useRef<HTMLDivElement>(null);
+
+  const activeFiltersCount = [
+    minPrice, maxPrice, minArea, maxArea, soilType, waterSource, roadAccess
+  ].filter(Boolean).length;
+
   useEffect(() => {
-    setVisibleCount(12);
-  }, [searchTerm, filterType, minPrice, maxPrice, selectedDistrict, selectedCity]);
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Sync tab with drawerState
+  useEffect(() => {
+    setMobileActiveTab(drawerState === 'collapsed' ? 'map' : 'lands');
+  }, [drawerState]);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    startYRef.current = e.clientY;
+    isDraggingActiveRef.current = true;
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDraggingActiveRef.current) return;
+    const deltaY = e.clientY - startYRef.current;
+    // Set state to trigger UI update
+    setDragY(deltaY);
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!isDraggingActiveRef.current) return;
+    isDraggingActiveRef.current = false;
+    try {
+      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch (err) {}
+
+    const deltaY = dragY || 0;
+    if (drawerState === 'collapsed') {
+      // Dragged up enough -> Expand
+      if (deltaY < -75) {
+        setDrawerState('expanded');
+      }
+    } else {
+      // Dragged down enough -> Collapse
+      if (deltaY > 100) {
+        setDrawerState('collapsed');
+      }
+    }
+    setDragY(null);
+  };
 
   // Fetch updated 38-district GeoJSON from GitHub raw link (CORS enabled)
   useEffect(() => {
@@ -526,6 +1193,43 @@ export default function MapSearch() {
       }
     };
     fetchProps();
+  }, []);
+
+  // Pre-warm tile cache: silently fetch all TN tiles at zoom 6-11 into browser cache
+  // Staggered: low zoom first (fast, few tiles), then high zoom (more tiles, deferred)
+  useEffect(() => {
+    const TN_BOUNDS = { minLat: 7.5, maxLat: 14.0, minLng: 75.5, maxLng: 81.5 };
+    const SUBDOMAINS = ['0', '1', '2', '3'];
+
+    const toTileX = (lng: number, z: number) =>
+      Math.floor((lng + 180) / 360 * Math.pow(2, z));
+
+    const toTileY = (lat: number, z: number) => {
+      const rad = lat * Math.PI / 180;
+      return Math.floor(
+        (1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2 * Math.pow(2, z)
+      );
+    };
+
+    const prewarmZoom = (zoom: number) => {
+      const minX = toTileX(TN_BOUNDS.minLng, zoom);
+      const maxX = toTileX(TN_BOUNDS.maxLng, zoom);
+      const minY = toTileY(TN_BOUNDS.maxLat, zoom);
+      const maxY = toTileY(TN_BOUNDS.minLat, zoom);
+      for (let x = minX; x <= maxX; x++) {
+        for (let y = minY; y <= maxY; y++) {
+          const s = SUBDOMAINS[(x + y) % SUBDOMAINS.length];
+          const img = new Image();
+          img.src = `https://mt${s}.google.com/vt/lyrs=m&x=${x}&y=${y}&z=${zoom}&apistyle=s.t:0|s.e:l|p.v:off,s.t:3|p.v:off`;
+        }
+      }
+    };
+
+    // Stagger: low zoom immediately, higher zoom deferred so they don't compete
+    const delays: Record<number, number> = { 6: 500, 7: 1000, 8: 2000, 9: 3500, 10: 5000, 11: 7000 };
+    Object.entries(delays).forEach(([zoom, delay]) => {
+      setTimeout(() => prewarmZoom(Number(zoom)), delay);
+    });
   }, []);
 
   // Filter properties by selected district/city and active filters
@@ -573,9 +1277,22 @@ export default function MapSearch() {
       if (minPrice && p.price < parseFloat(minPrice)) return false;
       if (maxPrice && p.price > parseFloat(maxPrice)) return false;
 
+      // 6. Area filters
+      if (minArea && p.area < parseFloat(minArea)) return false;
+      if (maxArea && p.area > parseFloat(maxArea)) return false;
+
+      // 7. Soil Type filter
+      if (soilType && p.soil_type !== soilType) return false;
+
+      // 8. Water Source filter
+      if (waterSource && p.water_source !== waterSource) return false;
+
+      // 9. Road Access filter
+      if (roadAccess && p.road_access !== roadAccess) return false;
+
       return true;
     });
-  }, [properties, selectedDistrict, selectedCity, searchTerm, filterType, minPrice, maxPrice]);
+  }, [properties, selectedDistrict, selectedCity, searchTerm, filterType, minPrice, maxPrice, minArea, maxArea, soilType, waterSource, roadAccess]);
 
   // Handle manual select from District Select dropdown
   const handleDistrictChange = (districtName: string) => {
@@ -586,7 +1303,6 @@ export default function MapSearch() {
 
     setSelectedDistrict(districtName);
     setSelectedCity(null);
-    setMobileView('list');
     
     // Zoom/pan map dynamically to that district in our loaded GeoJSON
     if (geoJsonData) {
@@ -612,9 +1328,11 @@ export default function MapSearch() {
   const handleCityChange = (cityName: string) => {
     if (!cityName) {
       setSelectedCity(null);
+      setDrawerState('collapsed');
       return;
     }
     setSelectedCity(cityName);
+    setDrawerState('expanded');
   };
 
   const handleMapBackgroundClick = () => {
@@ -623,6 +1341,7 @@ export default function MapSearch() {
     setSelectedBounds(null);
     setMapCenter(TN_CENTER);
     setMapZoom(TN_ZOOM);
+    setDrawerState('collapsed');
   };
 
   const activeCityDivisions = useMemo(() => {
@@ -660,12 +1379,13 @@ export default function MapSearch() {
   const maskGeoJson = useMemo(() => {
     if (!geoJsonData) return null;
     
-    // Outer frame coordinates wrapping India/Asia bounds safely
+    // GeoJSON coords are [lng, lat]. Use full world bounds so the dark mask
+    // covers EVERYTHING no matter how far the user pans — no blue tiles ever.
     const worldBounds = [
       [-180, -90],
-      [180, -90],
-      [180, 90],
-      [-180, 90],
+      [ 180, -90],
+      [ 180,  90],
+      [-180,  90],
       [-180, -90]
     ];
     
@@ -692,6 +1412,9 @@ export default function MapSearch() {
     } as any;
   }, [geoJsonData]);
 
+  // SVG renderer with giant padding so the mask is pre-drawn 10x beyond
+  // the visible viewport — eliminates blue flashing when panning
+  const maskRenderer = useMemo(() => L.svg({ padding: 10 }), []);
 
 
   // GeoJSON style handler
@@ -699,10 +1422,10 @@ export default function MapSearch() {
     const distName = feature.properties.Dist_Name || '';
     const isSelected = selectedDistrict && normalizeName(distName) === normalizeName(selectedDistrict);
     return {
-      color: isSelected ? '#eab308' : 'rgba(16, 16, 16, 0.15)', // bold yellow outline for selected district
+      color: isSelected ? '#eab308' : 'rgba(16, 16, 16, 0.15)',
       weight: isSelected ? 3.5 : 1.5,
       fillColor: isSelected ? '#facc15' : 'transparent',
-      fillOpacity: isSelected ? 0.05 : 0, // soft yellow wash inside selected district
+      fillOpacity: isSelected ? 0.05 : 0,
       transition: 'all 0.18s ease-out'
     };
   };
@@ -739,15 +1462,19 @@ export default function MapSearch() {
         setSelectedDistrict(distName);
         setSelectedCity(null);
         setSelectedBounds(e.target.getBounds());
-        setMobileView('list');
       }
     });
 
   };
 
   return (
-    <div className="map-search-page-container" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)', overflow: 'hidden', background: 'transparent' }}>
+    <div className="map-search-page-container" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)', overflow: 'hidden', background: '#f0f0ef' }}>
       <style>{`
+        @keyframes slideUp {
+          from { transform: translateY(100%); }
+          to { transform: translateY(0); }
+        }
+
         /* ── FILTER BAR ── */
         .filters-container::-webkit-scrollbar { display: none !important; }
         .filters-container { -ms-overflow-style: none; scrollbar-width: none; }
@@ -757,9 +1484,7 @@ export default function MapSearch() {
           align-items: center;
           gap: 0.35rem;
           padding: 0.42rem 1rem;
-          background: rgba(255, 255, 255, 0.45);
-          backdrop-filter: blur(4px);
-          -webkit-backdrop-filter: blur(4px);
+          background: #ffffff;
           border: 1.5px solid #e4e4e3;
           border-radius: 99px;
           font-size: 0.8rem;
@@ -811,6 +1536,10 @@ export default function MapSearch() {
           transform: translateY(-50%);
           pointer-events: none;
         }
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
         .search-pill {
           padding-left: 2.2rem !important;
         }
@@ -827,9 +1556,7 @@ export default function MapSearch() {
         .listing-card {
           display: flex;
           flex-direction: column;
-          background: rgba(255, 255, 255, 0.75);
-          backdrop-filter: blur(12px);
-          -webkit-backdrop-filter: blur(12px);
+          background: #ffffff;
           border-radius: 12px;
           border: 1px solid #e5e7eb;
           overflow: hidden;
@@ -871,192 +1598,121 @@ export default function MapSearch() {
         /* ── RESPONSIVE ── */
         @media (max-width: 768px) {
           .map-search-page-container {
-            height: calc(100vh - 60px) !important;
-            overflow: hidden !important;
+            height: auto !important;
+            overflow-y: visible !important;
+            margin-top: 0px !important;
           }
           .filters-container {
-            padding: 0.5rem 0.875rem !important;
-            flex-wrap: nowrap !important;
-            overflow-x: hidden !important;
-            justify-content: space-between !important;
-            background: rgba(255, 255, 255, 0.8) !important;
-          }
-          .filters-container > .search-pill-wrap {
-            width: 100% !important;
-            flex: 1 !important;
-          }
-          .filters-container > .search-pill-wrap > input {
-            width: 100% !important;
-            box-sizing: border-box !important;
-          }
-          .filters-container .desktop-only-filter {
-            display: none !important;
-          }
-          .mobile-filter-btn {
-            display: flex !important;
+            padding: 0.5rem 0.5rem !important;
           }
           .split-view-container {
             grid-template-columns: 1fr !important;
-            grid-template-rows: 1fr !important;
-            height: 100% !important;
-            overflow: hidden !important;
-            padding: 0 !important;
-            gap: 0 !important;
-            position: relative !important;
+            height: auto !important;
+            overflow-y: visible !important;
+            padding: 0px 0.35rem 0.35rem 0.35rem !important;
+            gap: 0.5rem !important;
           }
           .map-card-col {
-            position: absolute !important;
-            top: 0; left: 0; right: 0; bottom: 0;
-            height: 100% !important;
-            z-index: 1 !important;
-            border-radius: 0 !important;
-            opacity: var(--map-opacity, 1) !important;
-            pointer-events: var(--map-pointer, auto) !important;
-            transition: opacity 0.3s ease !important;
+            height: calc(100vh - 180px) !important;
+            border-radius: 12px !important;
+            border: 1px solid rgba(0,0,0,0.08) !important;
+            order: 1 !important;
           }
           .listings-card-col {
-            position: absolute !important;
-            top: 0; left: 0; right: 0; bottom: 0;
-            height: 100% !important;
-            overflow-y: auto !important;
-            z-index: 2 !important;
-            background: rgba(250, 250, 250, 0.95) !important;
-            backdrop-filter: blur(16px) !important;
-            border-top: none !important;
-            opacity: var(--list-opacity, 0) !important;
-            pointer-events: var(--list-pointer, none) !important;
-            transition: opacity 0.3s ease !important;
-            padding-bottom: 5rem !important;
+            height: auto !important;
+            overflow-y: visible !important;
+            order: 2 !important;
           }
-          .listings-grid {
-            grid-template-columns: 1fr !important;
-            gap: 1rem !important;
-          }
-          .mobile-view-toggle {
-            display: flex !important;
-          }
+        }
+        .navbar {
+          margin-bottom: 4px !important;
         }
       `}</style>
       
 
+      
+      {/* Premium CSS for tooltips */}
+      <style>{`
+        .district-tooltip {
+          background: #101010 !important;
+          color: #ffffff !important;
+          border: none !important;
+          border-radius: 4px !important;
+          font-weight: 700 !important;
+          font-size: 0.72rem !important;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+          padding: 4px 8px !important;
+          font-family: 'Inter', sans-serif !important;
+        }
+        .district-tooltip::before {
+          border-top-color: #101010 !important;
+        }
+        .city-division-tooltip {
+          background: transparent !important;
+          border: none !important;
+          box-shadow: none !important;
+          padding: 0 !important;
+        }
+        .city-division-tooltip::before {
+          display: none !important;
+        }
+      `}</style>
+
       {/* ── TOP FILTER BAR ── */}
       <div className="filters-container" style={{
-        background: 'rgba(255, 255, 255, 0.25)',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        borderBottom: '1px solid rgba(0, 0, 0, 0.08)',
-        padding: '0.6rem 1.25rem',
+        background: '#ffffff',
+        borderBottom: '1px solid #e8e8e7',
+        padding: isMobile ? '0.5rem 0.75rem' : '0.6rem 1.25rem',
         display: 'flex',
         alignItems: 'center',
-        gap: '0.5rem',
-        zIndex: 900,
-        overflowX: 'auto'
+        gap: '0.4rem',
+        zIndex: 50,
+        overflowX: isMobile ? 'auto' : 'visible',
+        whiteSpace: 'nowrap'
       }}>
-        {/* Search */}
-        <div className="search-pill-wrap">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <input
-            type="text"
-            className="filter-pill search-pill"
-            placeholder="Search lands..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            style={{ minWidth: '160px' }}
-          />
-        </div>
-
-        {/* Mobile Filters Toggle Button */}
-        <button
-          className="mobile-filter-btn filter-pill"
-          onClick={() => setMobileFiltersOpen(true)}
-          style={{ display: 'none', background: '#101010', color: '#fff', border: 'none', padding: '0.5rem 1rem' }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line>
-          </svg>
-          Filters
-        </button>
-
-        <div className="filter-divider desktop-only-filter" />
-
-        {/* District */}
-        <select
-          className={`filter-pill filter-pill-select desktop-only-filter ${selectedDistrict ? ' active' : ''}`}
-          value={selectedDistrict || ''}
-          onChange={e => handleDistrictChange(e.target.value)}
-        >
-          <option value="">District</option>
-          {TAMIL_NADU_DISTRICTS.map(d => (
-            <option key={d} value={d}>{d}</option>
-          ))}
-        </select>
-
-        {/* City — only shown when district selected */}
-        {selectedDistrict && (
-          <select
-            className={`filter-pill filter-pill-select desktop-only-filter ${selectedCity ? ' active' : ''}`}
-            value={selectedCity || ''}
-            onChange={e => handleCityChange(e.target.value)}
-          >
-            <option value="">All of {selectedDistrict}</option>
-            {sortedTaluksList.map(name => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
+        {/* Desktop Search (Hidden on Mobile, moved to first line in Navbar) */}
+        {!isMobile && (
+          <>
+            <div className="search-pill-wrap">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input
+                type="text"
+                className="filter-pill search-pill"
+                placeholder="Search lands..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                style={{ minWidth: '160px' }}
+              />
+            </div>
+            <div className="filter-divider" />
+          </>
         )}
 
-        <div className="filter-divider desktop-only-filter" />
+        {renderSamsungDropdowns()}
 
-        {/* Type */}
-        <select
-          className={`filter-pill filter-pill-select desktop-only-filter ${filterType ? ' active' : ''}`}
-          value={filterType}
-          onChange={e => setFilterType(e.target.value)}
-        >
-          <option value="">Plot Type</option>
-          <option>Agricultural Land</option>
-          <option>Flat Plot</option>
-          <option>Farm Land</option>
-          <option>Residential Plot</option>
-          <option>Commercial Plot</option>
-        </select>
 
-        <div className="filter-divider desktop-only-filter" />
-
-        {/* Price range */}
-        <input
-          type="number"
-          className="filter-pill desktop-only-filter"
-          placeholder="Min ₹"
-          value={minPrice}
-          onChange={e => setMinPrice(e.target.value)}
-          style={{ width: '90px' }}
-        />
-        <input
-          type="number"
-          className="filter-pill desktop-only-filter"
-          placeholder="Max ₹"
-          value={maxPrice}
-          onChange={e => setMaxPrice(e.target.value)}
-          style={{ width: '90px' }}
-        />
 
         {/* Reset if any active filter */}
-        {(selectedDistrict || selectedCity || filterType || minPrice || maxPrice || searchTerm) && (
+        {(selectedDistrict || selectedCity || filterType || minPrice || maxPrice || searchTerm || minArea || maxArea || soilType || waterSource || roadAccess) && (
           <>
-            <div className="filter-divider desktop-only-filter" />
+            {!isMobile && <div className="filter-divider" />}
             <button
-              className="filter-pill desktop-only-filter"
+              className="filter-pill"
               onClick={() => {
                 handleMapBackgroundClick();
                 setFilterType('');
                 setMinPrice('');
                 setMaxPrice('');
                 setSearchTerm('');
+                setMinArea('');
+                setMaxArea('');
+                setSoilType('');
+                setWaterSource('');
+                setRoadAccess('');
               }}
-              style={{ color: '#ef4444', borderColor: '#fca5a5', background: 'rgba(254, 226, 226, 0.6)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', fontWeight: 600 }}
+              style={isMobile ? { height: '30px', fontSize: '0.74rem', padding: '0 0.5rem', color: '#ef4444', borderColor: '#fca5a5', background: '#fff5f5', fontWeight: 600 } : { color: '#ef4444', borderColor: '#fca5a5', background: '#fff5f5', fontWeight: 600 }}
             >
               ✕ Clear
             </button>
@@ -1064,145 +1720,117 @@ export default function MapSearch() {
         )}
       </div>
 
-      {/* ── MOBILE FULL SCREEN FILTERS MODAL ── */}
-      {mobileFiltersOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(255, 255, 255, 0.98)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          zIndex: 9999,
-          display: 'flex',
-          flexDirection: 'column',
-          padding: '2rem 1.5rem',
-          overflowY: 'auto'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-            <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>Filters</h2>
-            <button
-              onClick={() => setMobileFiltersOpen(false)}
-              style={{ background: '#f3f4f6', border: 'none', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-            </button>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#4b5563' }}>Location</label>
-              <select
-                style={{ padding: '0.875rem', borderRadius: '12px', border: '1px solid #e5e7eb', background: '#fff', fontSize: '1rem', width: '100%' }}
-                value={selectedDistrict || ''}
-                onChange={e => handleDistrictChange(e.target.value)}
-              >
-                <option value="">All Districts</option>
-                {TAMIL_NADU_DISTRICTS.map(d => <option key={d} value={d}>{d}</option>)}
-              </select>
-              {selectedDistrict && (
-                <select
-                  style={{ padding: '0.875rem', borderRadius: '12px', border: '1px solid #e5e7eb', background: '#fff', fontSize: '1rem', width: '100%', marginTop: '0.5rem' }}
-                  value={selectedCity || ''}
-                  onChange={e => handleCityChange(e.target.value)}
-                >
-                  <option value="">All of {selectedDistrict}</option>
-                  {sortedTaluksList.map(name => <option key={name} value={name}>{name}</option>)}
-                </select>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#4b5563' }}>Plot Type</label>
-              <select
-                style={{ padding: '0.875rem', borderRadius: '12px', border: '1px solid #e5e7eb', background: '#fff', fontSize: '1rem', width: '100%' }}
-                value={filterType}
-                onChange={e => setFilterType(e.target.value)}
-              >
-                <option value="">All Types</option>
-                <option>Agricultural Land</option>
-                <option>Flat Plot</option>
-                <option>Farm Land</option>
-                <option>Residential Plot</option>
-                <option>Commercial Plot</option>
-              </select>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#4b5563' }}>Price Range</label>
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <input
-                  type="number"
-                  placeholder="Min ₹"
-                  value={minPrice}
-                  onChange={e => setMinPrice(e.target.value)}
-                  style={{ flex: 1, padding: '0.875rem', borderRadius: '12px', border: '1px solid #e5e7eb', background: '#fff', fontSize: '1rem' }}
-                />
-                <input
-                  type="number"
-                  placeholder="Max ₹"
-                  value={maxPrice}
-                  onChange={e => setMaxPrice(e.target.value)}
-                  style={{ flex: 1, padding: '0.875rem', borderRadius: '12px', border: '1px solid #e5e7eb', background: '#fff', fontSize: '1rem' }}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div style={{ marginTop: 'auto', display: 'flex', gap: '1rem', paddingTop: '2rem' }}>
-            <button
-              onClick={() => {
-                handleMapBackgroundClick();
-                setFilterType('');
-                setMinPrice('');
-                setMaxPrice('');
-                setSearchTerm('');
-                setMobileFiltersOpen(false);
-              }}
-              style={{ flex: 1, padding: '1rem', borderRadius: '12px', background: '#f3f4f6', color: '#374151', fontWeight: 600, border: 'none', fontSize: '1rem' }}
-            >
-              Clear All
-            </button>
-            <button
-              onClick={() => setMobileFiltersOpen(false)}
-              style={{ flex: 2, padding: '1rem', borderRadius: '12px', background: '#101010', color: '#fff', fontWeight: 600, border: 'none', fontSize: '1rem' }}
-            >
-              Show {filteredProperties.length} Lands
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* ── SPLIT VIEW CONTAINER ── */}
       <div className="split-view-container" style={{
         display: 'grid',
         gridTemplateColumns: '1.35fr 1fr',
         flex: 1,
         overflow: 'hidden',
-        padding: '0.875rem',
+        padding: '0 0.875rem 0.875rem 0.875rem',
         gap: '0.875rem',
-        background: 'transparent',
-        '--map-opacity': mobileView === 'map' ? 1 : 0,
-        '--map-pointer': mobileView === 'map' ? 'auto' : 'none',
-        '--list-opacity': mobileView === 'list' ? 1 : 0,
-        '--list-pointer': mobileView === 'list' ? 'auto' : 'none'
-      } as React.CSSProperties}>
+        background: '#f0f0ef'
+      }}>
         
         {/* LEFT COLUMN: Map Card */}
-        <div className="map-card-col" style={{
-          borderRadius: '16px',
+        {(!isMobile || mobileActiveTab === 'map') && (
+          <div className="map-card-col" style={{
+          borderRadius: '36px',
           overflow: 'hidden',
           height: '100%',
           position: 'relative',
-          boxShadow: '0 2px 16px rgba(0,0,0,0.06)'
+          boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+          border: '1.5px solid rgba(0,0,0,0.1)'
         }}>
           <div style={{ height: '100%', width: '100%', overflow: 'hidden', position: 'relative' }}>
+            {/* Floating Map/Lands Toggle Button for Mobile - Top Over Map */}
+            {isMobile && (
+              <div style={{
+                position: 'absolute',
+                top: '12px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 999,
+                background: 'rgba(255, 255, 255, 0.82)',
+                backdropFilter: 'blur(20px)',
+                WebkitBackdropFilter: 'blur(20px)',
+                borderRadius: '99px',
+                padding: '3px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '2px',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04)',
+                border: '1.5px solid rgba(255,255,255,0.4)',
+                height: '40px',
+                boxSizing: 'border-box'
+              }}>
+                <button
+                  onClick={() => {
+                    setMobileActiveTab('map');
+                    setDrawerState('collapsed');
+                  }}
+                  style={{
+                    background: drawerState === 'collapsed' ? '#101010' : 'transparent',
+                    color: drawerState === 'collapsed' ? '#ffffff' : '#374151',
+                    border: 'none',
+                    borderRadius: '99px',
+                    padding: '0 20px',
+                    height: '32px',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
+                    outline: 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    WebkitTapHighlightColor: 'transparent',
+                    fontFamily: "'Inter', system-ui, sans-serif",
+                    letterSpacing: '-0.01em'
+                  }}
+                >
+                  Map
+                </button>
+                <button
+                  onClick={() => {
+                    setMobileActiveTab('lands');
+                    setDrawerState('expanded');
+                  }}
+                  style={{
+                    background: drawerState === 'expanded' ? '#101010' : 'transparent',
+                    color: drawerState === 'expanded' ? '#ffffff' : '#374151',
+                    border: 'none',
+                    borderRadius: '99px',
+                    padding: '0 20px',
+                    height: '32px',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
+                    outline: 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    WebkitTapHighlightColor: 'transparent',
+                    fontFamily: "'Inter', system-ui, sans-serif",
+                    letterSpacing: '-0.01em'
+                  }}
+                >
+                  Lands
+                </button>
+              </div>
+            )}
             <MapContainer
               center={mapCenter}
               zoom={mapZoom}
               zoomControl={false}
-              attributionControl={false}
-              maxBounds={[[5, 68], [24, 88]]} // locks viewport bounds to India space
+              maxBounds={[[4, 64], [25, 92]]}
               minZoom={6}
+              maxZoom={14}
+              zoomAnimation={true}
+              zoomAnimationThreshold={4}
+              fadeAnimation={true}
+              markerZoomAnimation={true}
+              preferCanvas={false}
               style={{ height: '100%', width: '100%' }}
             >
             {/* Fly to active center or bounds */}
@@ -1211,23 +1839,27 @@ export default function MapSearch() {
             {/* Click listener to deselect selected district */}
             <MapEventsHandler onMapClick={handleMapBackgroundClick} />
 
-            {/* Styled Google Maps Standard Tile Layer (Hides all roads and labels) */}
+            {/* Styled Google Maps Standard Tile Layer — keepBuffer prefetches tiles far outside viewport */}
             <TileLayer
               url={MAP_TILES}
               subdomains={['0', '1', '2', '3']}
               attribution='&copy; Google Maps'
+              keepBuffer={8}
+              updateWhenIdle={false}
+              updateWhenZooming={false}
             />
 
-            {/* GTA V Style Lock Mask (Darkens all states/ocean outside Tamil Nadu) */}
+            {/* Permanent dark mask outside Tamil Nadu — pre-rendered far beyond viewport */}
             {maskGeoJson && (
               <GeoJSON
                 key="tn-gta-mask"
                 data={maskGeoJson}
-                style={{
-                  fillColor: '#090c15', // dark charcoal-slate
+                pathOptions={{
+                  fillColor: '#090c15',
                   fillOpacity: 0.76,
                   color: 'transparent',
-                  weight: 0
+                  weight: 0,
+                  renderer: maskRenderer
                 }}
                 interactive={false}
               />
@@ -1242,7 +1874,7 @@ export default function MapSearch() {
                 onEachFeature={onEachFeature}
               />
             )}
-
+          
             {/* District Name Labels rendered as desaturated text on the map */}
             {districtCenters.map((dc: { name: string; coords: [number, number] }) => {
               const isSelected = selectedDistrict && normalizeName(dc.name) === normalizeName(selectedDistrict);
@@ -1331,13 +1963,15 @@ export default function MapSearch() {
               );
             })}
             </MapContainer>
+
+
           </div>
-
-
         </div>
+      )}
 
         {/* RIGHT COLUMN: Listings */}
-        <div className="listings-card-col" style={{
+        {(!isMobile || mobileActiveTab === 'lands') && (
+          <div className="listings-card-col" style={{
           height: '100%',
           overflowY: 'auto',
           padding: '1rem 0.875rem',
@@ -1347,18 +1981,16 @@ export default function MapSearch() {
           gap: '0.75rem'
         }}>
           {/* Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 0.125rem' }}>
-            <div>
-              <h2 style={{ fontSize: '1rem', fontWeight: 700, color: '#111827', margin: 0 }}>
-                {selectedDistrict 
-                  ? (selectedCity ? selectedCity : selectedDistrict)
-                  : 'Tamil Nadu'
-                }
-              </h2>
-              <p style={{ margin: 0, fontSize: '0.75rem', color: '#9ca3af', fontWeight: 500 }}>
-                {filteredProperties.length} land{filteredProperties.length !== 1 ? 's' : ''} listed
-              </p>
-            </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', borderBottom: '1px solid rgba(0,0,0,0.06)', paddingBottom: '0.85rem', marginBottom: '0.25rem' }}>
+            <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, color: '#101010', fontFamily: "'Inter', system-ui, -apple-system, sans-serif", letterSpacing: '-0.04em' }}>
+              {selectedDistrict 
+                ? (selectedCity ? `${selectedDistrict}, ${selectedCity} Lands!` : `${selectedDistrict} Lands!`)
+                : 'Tamil Nadu Lands!'
+              }
+            </h2>
+            <span style={{ fontSize: '0.68rem', color: '#6b7280', fontWeight: 700, fontFamily: "'Inter', system-ui, -apple-system, sans-serif", letterSpacing: '0.02em', textTransform: 'uppercase', display: 'block', marginTop: '0.15rem' }}>
+              {filteredProperties.length} FOUND RESULTS
+            </span>
           </div>
 
           {loading ? (
@@ -1401,207 +2033,402 @@ export default function MapSearch() {
               </button>
             </div>
           ) : (
-            <>
-              <div className="listings-grid">
-                {filteredProperties.slice(0, visibleCount).map(p => (
-                  <GlareHover
-                    key={p.id}
-                    disabled={animationSetting === 'minimal'}
-                    background="rgba(255, 255, 255, 0.75)"
-                    glareColor="#ffffff"
-                    glareOpacity={0.25}
-                    glareSize={200}
-                    borderRadius="12px"
-                    className="listing-card"
-                  >
-                    <Link
-                      to={`/property/${p.id}`}
-                      style={{ textDecoration: 'none', color: 'inherit', display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}
+            <div className="listings-grid">
+              {filteredProperties.map(p => (
+                <Link
+                  key={p.id}
+                  to={`/property/${p.id}`}
+                  className="listing-card"
+                >
+                  {/* Image Container with overlays */}
+                  <div style={{ width: '100%', position: 'relative', aspectRatio: '16/9', background: '#f3f4f6', overflow: 'hidden' }}>
+                    <img
+                      src={getPropertyImageUrl(p)}
+                      alt="land"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                    
+                    {/* Showcase Pill */}
+                    <div style={{
+                      position: 'absolute', top: '0.625rem', left: '0.625rem',
+                      background: '#ffffff',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.06)',
+                      borderRadius: '4px', padding: '3px 8px',
+                      fontSize: '0.625rem', fontWeight: 800, color: '#111827',
+                      letterSpacing: '0.03em', textTransform: 'uppercase'
+                    }}>
+                      Active
+                    </div>
+
+                    {/* Wishlist Heart Overlay */}
+                    <button
+                      onClick={(e) => toggleWishlist(e, p.id)}
+                      disabled={togglingId === p.id}
+                      style={{
+                        position: 'absolute', top: '0.625rem', right: '0.625rem',
+                        background: 'transparent',
+                        border: 'none', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        padding: 0,
+                        transition: 'transform 0.15s ease',
+                        outline: 'none',
+                        zIndex: 10
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.1)')}
+                      onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
                     >
-                      {/* Image Container with overlays */}
-                    <div style={{ width: '100%', position: 'relative', aspectRatio: '16/9', background: '#f3f4f6', overflow: 'hidden' }}>
-                      <img
-                        src={getPropertyImageUrl(p)}
-                        alt="land"
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      />
-                      
-                      {/* Showcase Pill */}
-                      <div style={{
-                        position: 'absolute', top: '0.625rem', left: '0.625rem',
-                        background: '#ffffff',
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.06)',
-                        borderRadius: '4px', padding: '3px 8px',
-                        fontSize: '0.625rem', fontWeight: 800, color: '#111827',
-                        letterSpacing: '0.03em', textTransform: 'uppercase'
-                      }}>
-                        Active
-                      </div>
-
-                      {/* Wishlist Heart Overlay */}
-                      <button
-                        onClick={(e) => toggleWishlist(e, p.id)}
-                        disabled={togglingId === p.id}
+                      <svg
+                        width="26"
+                        height="26"
+                        viewBox="0 0 24 24"
                         style={{
-                          position: 'absolute', top: '0.625rem', right: '0.625rem',
-                          background: 'transparent',
-                          border: 'none', cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          padding: 0,
-                          transition: 'transform 0.15s ease',
-                          outline: 'none',
-                          zIndex: 10
+                          filter: 'drop-shadow(0 1.5px 3.5px rgba(0,0,0,0.7))',
+                          transition: 'all 0.15s ease'
                         }}
-                        onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.1)')}
-                        onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
                       >
-                        <svg
-                          width="26"
-                          height="26"
-                          viewBox="0 0 24 24"
-                          style={{
-                            filter: 'drop-shadow(0 1.5px 3.5px rgba(0,0,0,0.7))',
-                            transition: 'all 0.15s ease'
-                          }}
-                        >
-                          <path
-                            d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
-                            fill={wishlist.includes(p.id) ? '#101010' : 'none'}
-                            stroke="#ffffff"
-                            strokeWidth="2.2"
-                          />
+                        <path
+                          d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+                          fill={wishlist.includes(p.id) ? '#101010' : 'none'}
+                          stroke="#ffffff"
+                          strokeWidth="2.2"
+                        />
+                      </svg>
+                    </button>
+
+                    {/* Zillow style pagination dots */}
+                    <div style={{
+                      position: 'absolute', bottom: '0.625rem', left: '50%', transform: 'translateX(-50%)',
+                      display: 'flex', gap: '4px', background: 'rgba(0,0,0,0.22)', padding: '3px 6px', borderRadius: '99px'
+                    }}>
+                      {[1, 2, 3, 4, 5].map((dot, i) => (
+                        <div key={dot} style={{
+                          width: '5px', height: '5px', borderRadius: '50%',
+                          background: i === 0 ? '#ffffff' : 'rgba(255,255,255,0.5)'
+                        }} />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Details Body */}
+                  <div style={{ padding: '0.45rem 0.65rem 0.55rem', display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between', background: '#ffffff', minHeight: '85px' }}>
+                    <div>
+                      {/* Price & Options row */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <p style={{ margin: 0, fontSize: '1.0625rem', fontWeight: 800, color: '#111827', fontFamily: "'Poppins', sans-serif" }}>
+                          {formatPrice(p.price)}
+                        </p>
+                        {/* Three dots icon */}
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ cursor: 'pointer' }}>
+                          <circle cx="12" cy="12" r="1" />
+                          <circle cx="19" cy="12" r="1" />
+                          <circle cx="5" cy="12" r="1" />
                         </svg>
-                      </button>
-
-                      {/* Zillow style pagination dots */}
-                      <div style={{
-                        position: 'absolute', bottom: '0.625rem', left: '50%', transform: 'translateX(-50%)',
-                        display: 'flex', gap: '4px', background: 'rgba(0,0,0,0.22)', padding: '3px 6px', borderRadius: '99px'
-                      }}>
-                        {[1, 2, 3, 4, 5].map((dot, i) => (
-                          <div key={dot} style={{
-                            width: '5px', height: '5px', borderRadius: '50%',
-                            background: i === 0 ? '#ffffff' : 'rgba(255,255,255,0.5)'
-                          }} />
-                        ))}
                       </div>
+
+                      {/* Property specs row */}
+                      <p style={{ margin: '0.15rem 0 0', fontSize: '0.72rem', color: '#1f2937', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {p.area} {p.area_unit.replace('_', ' ')} <span style={{ color: '#d1d5db', margin: '0 3px' }}>|</span> {p.type.replace(' Land', '').replace(' Plot', '')} <span style={{ color: '#d1d5db', margin: '0 3px' }}>|</span> <span style={{ color: '#16a34a' }}>Deed</span>
+                      </p>
+
+                      {/* Address row */}
+                      <p style={{ margin: '0.1rem 0 0', fontSize: '0.72rem', color: '#4b5563', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                        {p.city}{p.district ? `, ${p.district}` : ''}
+                      </p>
                     </div>
 
-                    {/* Details Body */}
-                    <div style={{ padding: '0.45rem 0.65rem 0.55rem', display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between', background: 'transparent', minHeight: '85px' }}>
-                      <div>
-                        {/* Price & Options row */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <p style={{ margin: 0, fontSize: '1.0625rem', fontWeight: 800, color: '#111827', fontFamily: "'Poppins', sans-serif" }}>
-                            {formatPrice(p.price)}
-                          </p>
-                          {/* Three dots icon */}
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ cursor: 'pointer' }}>
-                            <circle cx="12" cy="12" r="1" />
-                            <circle cx="19" cy="12" r="1" />
-                            <circle cx="5" cy="12" r="1" />
-                          </svg>
-                        </div>
-
-                        {/* Property specs row */}
-                        <p style={{ margin: '0.15rem 0 0', fontSize: '0.72rem', color: '#1f2937', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {p.area} {p.area_unit.replace('_', ' ')} <span style={{ color: '#d1d5db', margin: '0 3px' }}>|</span> {p.type.replace(' Land', '').replace(' Plot', '')} <span style={{ color: '#d1d5db', margin: '0 3px' }}>|</span> <span style={{ color: '#16a34a' }}>Deed</span>
-                        </p>
-
-                        {/* Address row */}
-                        <p style={{ margin: '0.1rem 0 0', fontSize: '0.72rem', color: '#4b5563', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                          {p.city}{p.district ? `, ${p.district}` : ''}
-                        </p>
-                      </div>
-
-                      {/* Broker/Seller name */}
-                      <div style={{ marginTop: '0.28rem' }}>
-                        <p style={{ margin: 0, fontSize: '0.6rem', color: '#9ca3af', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-                          Territory Premium
-                        </p>
-                      </div>
+                    {/* Broker/Seller name */}
+                    <div style={{ marginTop: '0.28rem' }}>
+                      <p style={{ margin: 0, fontSize: '0.6rem', color: '#9ca3af', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                        Territory Premium
+                      </p>
                     </div>
-                    </Link>
-                  </GlareHover>
-                ))}
-              </div>
-              
-              {visibleCount < filteredProperties.length && (
-                <div style={{ textAlign: 'center', margin: '2rem 0' }}>
-                  <button 
-                    onClick={() => setVisibleCount(prev => prev + 12)}
-                    style={{
-                      padding: '0.6rem 1.5rem',
-                      background: 'rgba(255,255,255,0.75)',
-                      backdropFilter: 'blur(12px)',
-                      WebkitBackdropFilter: 'blur(12px)',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '99px',
-                      color: '#101010',
-                      fontSize: '0.875rem',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
-                    }}
-                  >
-                    Load More Lands
-                  </button>
-                </div>
-              )}
-            </>
+                  </div>
+                </Link>
+              ))}
+            </div>
           )}
         </div>
-      </div>
-      
-      {/* ── MOBILE VIEW TOGGLE ── */}
-      <div className="mobile-view-toggle" style={{
-        display: 'none',
-        position: 'fixed',
-        bottom: '1.5rem',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        zIndex: 2000,
-        background: '#101010',
-        borderRadius: '99px',
-        padding: '4px',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-        alignItems: 'center',
-        gap: '4px'
-      }}>
-        <button
-          onClick={() => setMobileView('map')}
-          style={{
-            background: mobileView === 'map' ? '#374151' : 'transparent',
-            color: mobileView === 'map' ? '#ffffff' : '#9ca3af',
-            border: 'none',
-            padding: '0.5rem 1rem',
-            borderRadius: '99px',
-            fontSize: '0.875rem',
-            fontWeight: 600,
-            cursor: 'pointer',
-            transition: 'all 0.2s'
-          }}
-        >
-          Map
-        </button>
-        <button
-          onClick={() => setMobileView('list')}
-          style={{
-            background: mobileView === 'list' ? '#374151' : 'transparent',
-            color: mobileView === 'list' ? '#ffffff' : '#9ca3af',
-            border: 'none',
-            padding: '0.5rem 1rem',
-            borderRadius: '99px',
-            fontSize: '0.875rem',
-            fontWeight: 600,
-            cursor: 'pointer',
-            transition: 'all 0.2s'
-          }}
-        >
-          List
-        </button>
+      )}
       </div>
 
+      {/* Mobile Draggable bottom sheet drawer (Google/Apple Maps comment sheet style) */}
+      {isMobile && createPortal(
+        <>
+          {/* Backdrop blur overlay - only shown when expanded */}
+          {drawerState === 'expanded' && (
+            <div 
+              onClick={() => {
+                setDrawerState('collapsed');
+                setSelectedCity(null);
+              }}
+              style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(0, 0, 0, 0.4)',
+                backdropFilter: 'blur(4px)',
+                WebkitBackdropFilter: 'blur(4px)',
+                zIndex: 999
+              }}
+            />
+          )}
+
+          {/* Slide-up bottom sheet drawer */}
+          <div 
+            ref={drawerRef}
+            style={{
+              position: 'fixed',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: '92vh',
+              transform: `translateY(${
+                dragY !== null
+                  ? Math.max(0, (drawerState === 'expanded' ? 0 : (window.innerHeight * 0.92 - 75)) + dragY)
+                  : (drawerState === 'expanded' ? 0 : (window.innerHeight * 0.92 - 75))
+              }px)`,
+              background: '#faf9f7',
+              borderTopLeftRadius: '24px',
+              borderTopRightRadius: '24px',
+              boxShadow: '0 -10px 40px rgba(0,0,0,0.15)',
+              zIndex: 1000,
+              overflowY: drawerState === 'expanded' ? 'auto' : 'hidden',
+              padding: '0.75rem 1.25rem 1.25rem 1.25rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.5rem',
+              transition: dragY !== null ? 'none' : 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+              boxSizing: 'border-box'
+            }}
+          >
+            {/* Header Drag Wrapper (captures pointer events) */}
+            <div 
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              style={{ 
+                width: '100%', 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center', 
+                cursor: 'grab', 
+                userSelect: 'none',
+                paddingTop: '4px',
+                paddingBottom: '8px',
+                flexShrink: 0
+              }}
+            >
+              {/* Sleek Horizontal Drag Handle Line */}
+              <div 
+                style={{
+                  width: '40px',
+                  height: '4.5px',
+                  background: '#d1d5db',
+                  borderRadius: '99px',
+                  margin: '0 auto 0.45rem auto'
+                }}
+              />
+
+              {/* Centered Header & Close Button */}
+              <div style={{ display: 'flex', width: '100%', justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
+                <div style={{ textAlign: 'center', width: '100%', padding: '0 2rem' }}>
+                  <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, color: '#101010', fontFamily: "'Inter', system-ui, -apple-system, sans-serif", letterSpacing: '-0.04em' }}>
+                    {selectedDistrict ? (selectedCity ? `${selectedDistrict}, ${selectedCity} Lands!` : `${selectedDistrict} Lands!`) : 'Tamil Nadu Lands!'}
+                  </h3>
+                  <span style={{ fontSize: '0.68rem', color: '#6b7280', fontWeight: 700, fontFamily: "'Inter', system-ui, -apple-system, sans-serif", letterSpacing: '0.02em', textTransform: 'uppercase', display: 'block', marginTop: '0.15rem' }}>
+                    {filteredProperties.length} found results
+                  </span>
+                </div>
+                {drawerState === 'expanded' && (
+                  <button 
+                    onClick={() => {
+                      setDrawerState('collapsed');
+                      setSelectedCity(null);
+                    }}
+                    style={{
+                      position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)',
+                      width: '28px', height: '28px', borderRadius: '50%',
+                      background: '#f3f4f6', border: 'none', color: '#6b7280',
+                      fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Expanded Content Only */}
+            {drawerState === 'expanded' && (
+              <>
+                {/* Same dropdown panel as map view */}
+                <div style={{
+                  padding: '0.25rem 0 0.5rem 0',
+                  borderBottom: '1px solid rgba(0,0,0,0.06)',
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  flexShrink: 0
+                }}>
+                  {renderSamsungDropdowns()}
+                </div>
+
+                {/* List Body */}
+                {loading ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', padding: '1rem 0' }}>
+                    {[1, 2].map(i => (
+                      <div key={i} className="skeleton" style={{ height: '120px', borderRadius: '14px' }} />
+                    ))}
+                  </div>
+                ) : filteredProperties.length === 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3rem 1rem', textAlign: 'center' }}>
+                    <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🌾</div>
+                    <p style={{ color: '#6b7280', fontSize: '0.875rem', fontWeight: 500, margin: '0 0 0.5rem' }}>
+                      No lands listed here yet.
+                    </p>
+                    <p style={{ color: '#9ca3af', fontSize: '0.78rem', margin: '0 0 1.25rem' }}>Try adjusting or clearing your filters.</p>
+                    <button
+                      onClick={() => {
+                        setDrawerState('collapsed');
+                        setSelectedCity(null);
+                      }}
+                      style={{
+                        background: '#101010',
+                        color: '#ffffff',
+                        border: 'none',
+                        padding: '0.5rem 1.25rem',
+                        borderRadius: '99px',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Close drawer
+                    </button>
+                  </div>
+                ) : (
+                  <div className="listings-grid" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem', paddingBottom: '2.5rem' }}>
+                    {filteredProperties.map(p => (
+                      <Link
+                        key={p.id}
+                        to={`/property/${p.id}`}
+                        className="listing-card"
+                      >
+                        {/* Image Container with overlays (16:9 ratio) */}
+                        <div style={{ width: '100%', position: 'relative', aspectRatio: '16/9', background: '#f3f4f6', overflow: 'hidden' }}>
+                          <img
+                            src={getPropertyImageUrl(p)}
+                            alt="land"
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                          
+                          {/* Showcase Pill */}
+                          <div style={{
+                            position: 'absolute', top: '0.625rem', left: '0.625rem',
+                            background: '#ffffff',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.06)',
+                            borderRadius: '4px', padding: '3px 8px',
+                            fontSize: '0.625rem', fontWeight: 800, color: '#111827',
+                            letterSpacing: '0.03em', textTransform: 'uppercase'
+                          }}>
+                            Active
+                          </div>
+
+                          {/* Wishlist Heart Overlay */}
+                          <button
+                            onClick={(e) => toggleWishlist(e, p.id)}
+                            disabled={togglingId === p.id}
+                            style={{
+                              position: 'absolute', top: '0.625rem', right: '0.625rem',
+                              background: 'transparent',
+                              border: 'none', cursor: 'pointer',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              padding: 0,
+                              transition: 'transform 0.15s ease',
+                              outline: 'none',
+                              zIndex: 10
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.1)')}
+                            onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
+                          >
+                            <svg
+                              width="26"
+                              height="26"
+                              viewBox="0 0 24 24"
+                              style={{
+                                filter: 'drop-shadow(0 1.5px 3.5px rgba(0,0,0,0.7))',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              <path
+                                d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+                                fill={wishlist.includes(p.id) ? '#101010' : 'none'}
+                                stroke="#ffffff"
+                                strokeWidth="2.2"
+                              />
+                            </svg>
+                          </button>
+
+                          {/* Zillow style pagination dots */}
+                          <div style={{
+                            position: 'absolute', bottom: '0.625rem', left: '50%', transform: 'translateX(-50%)',
+                            display: 'flex', gap: '4px', background: 'rgba(0,0,0,0.22)', padding: '3px 6px', borderRadius: '99px'
+                          }}>
+                            {[1, 2, 3, 4, 5].map((dot, i) => (
+                              <div key={dot} style={{
+                                width: '5px', height: '5px', borderRadius: '50%',
+                                background: i === 0 ? '#ffffff' : 'rgba(255,255,255,0.5)'
+                              }} />
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Details Body */}
+                        <div style={{ padding: '0.45rem 0.65rem 0.55rem', display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between', background: '#ffffff', minHeight: '85px' }}>
+                          <div>
+                            {/* Price & Options row */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <p style={{ margin: 0, fontSize: '1.0625rem', fontWeight: 800, color: '#111827', fontFamily: "'Poppins', sans-serif" }}>
+                                {formatPrice(p.price)}
+                              </p>
+                              {/* Three dots icon */}
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ cursor: 'pointer' }}>
+                                <circle cx="12" cy="12" r="1" />
+                                <circle cx="19" cy="12" r="1" />
+                                <circle cx="5" cy="12" r="1" />
+                              </svg>
+                            </div>
+
+                            {/* Property specs row */}
+                            <p style={{ margin: '0.15rem 0 0', fontSize: '0.72rem', color: '#1f2937', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {p.area} {p.area_unit.replace('_', ' ')} <span style={{ color: '#d1d5db', margin: '0 3px' }}>|</span> {p.type.replace(' Land', '').replace(' Plot', '')} <span style={{ color: '#d1d5db', margin: '0 3px' }}>|</span> <span style={{ color: '#16a34a' }}>Deed</span>
+                            </p>
+
+                            {/* Address row */}
+                            <p style={{ margin: '0.1rem 0 0', fontSize: '0.72rem', color: '#4b5563', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                              {p.city}{p.district ? `, ${p.district}` : ''}
+                            </p>
+                          </div>
+
+                          {/* Broker/Seller name */}
+                          <div style={{ marginTop: '0.28rem' }}>
+                            <p style={{ margin: 0, fontSize: '0.6rem', color: '#9ca3af', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                              Territory Premium
+                            </p>
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </>,
+        document.body
+      )}
     </div>
   );
 }
